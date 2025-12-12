@@ -1,0 +1,124 @@
+/* ==================================
+   全局与字体 (Global & Font)
+   ================================== */
+.root {
+    -fx-background-color: #f0f2f5;
+    /* 优先使用 Windows 优化版雅黑字体，没有则回退到 Segoe UI */
+    -fx-font-family: 'Microsoft YaHei UI', 'Segoe UI', sans-serif;
+    -fx-font-size: 14px;
+}
+/* 【新增】强制 Emoji 彩色显示类 */
+.emoji-font
+{
+    /* 优先使用 Windows 的彩色 Emoji 字体，其次是 Mac 的，最后是 Linux 的 */
+    -fx-font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", "Segoe UI"
+    , sans-serif;
+}
+
+
+/* ==================================
+   按钮通用样式 (Buttons)
+   ================================== */
+.button {
+    -fx-background-radius: 4;
+    -fx-border-radius: 4;
+    -fx-cursor: hand;
+    -fx-font-weight: bold; /* 粗体字更具现代感 */
+    -fx-padding: 8 16;     /* 稍微加大内边距 */
+    -fx-effect: null;      /* 重置默认阴影，让 JFXButton 自己处理或我们在 hover 时添加 */
+}
+
+/* --- 类型 A: 主操作按钮 (蓝色) --- */
+/* 对应 FXML 中的 styleClass="action-button" */
+.action-button {
+    -fx-background-color: #409eff;
+    -fx-text-fill: white;
+}
+
+.action-button:hover {
+    -fx-background-color: #66b1ff; /* 悬停变浅蓝 */
+    /* 添加柔和的蓝色辉光阴影 */
+    -fx-effect: dropshadow(three-pass-box, rgba(64,158,255,0.4), 8, 0, 0, 1);
+}
+
+/* --- 类型 B: 删除按钮 (红色警告风) --- */
+/* 对应 FXML 中的 fx:id="btnDelete" */
+#btnDelete {
+    -fx-background-color: white;
+    -fx-text-fill: #f56c6c; /* 默认红字 */
+    -fx-border-color: #f56c6c;
+    -fx-border-width: 1;
+}
+
+#btnDelete:hover {
+    -fx-background-color: #f56c6c; /* 悬停变红底 */
+    -fx-text-fill: white;          /* 悬停变白字 */
+    -fx-effect: dropshadow(three-pass-box, rgba(245,108,108,0.4), 8, 0, 0, 1);
+}
+
+/* ==================================
+   输入框与下拉框 (Inputs)
+   ================================== */
+.text-field, .date-picker .text-field, .combo-box {
+    -fx-background-color: white;
+    -fx-border-color: #dcdfe6;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+    -fx-padding: 5;
+}
+
+.text-field:focused, .date-picker:focused .text-field, .combo-box:focused {
+    -fx-border-color: #409eff;
+    -fx-effect: dropshadow(three-pass-box, rgba(64,158,255,0.2), 3, 0, 0, 0);
+}
+
+/* ==================================
+   表格美化 (Modern Table)
+   ================================== */
+.table-view {
+    -fx-background-color: white;
+    -fx-table-cell-border-color: transparent; /* 去掉所有默认边框线 */
+    -fx-background-radius: 8;
+    /* 给表格整体加卡片式阴影 */
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.05), 8, 0, 0, 1);
+}
+
+/* 表头样式 */
+.table-view .column-header-background {
+    -fx-background-color: transparent; /* 透明背景 */
+    -fx-border-width: 0 0 2px 0;       /* 仅保留底边线 */
+    -fx-border-color: #f2f2f2;
+}
+
+.table-view .column-header .label {
+    -fx-text-fill: #909399; /* 浅灰色文字 */
+    -fx-font-weight: bold;
+    -fx-alignment: CENTER-LEFT;
+}
+
+/* 单元格行样式 */
+.table-row-cell {
+    -fx-background-color: white;
+    -fx-border-width: 0 0 1px 0; /* 每行一条极细的分割线 */
+    -fx-border-color: #fcfcfc;
+    -fx-cell-size: 40px;         /* 增加行高，让数据不拥挤 */
+}
+
+/* 鼠标悬停在行上 */
+.table-row-cell:filled:hover {
+    -fx-background-color: #f5f7fa;
+}
+
+/* 选中行样式 */
+.table-view:focused > .virtual-flow > .clipped-container > .sheet > .table-row-cell:filled:selected {
+    -fx-background-color: #ecf5ff; /* 选中时显示极浅的蓝色 */
+}
+.table-view:focused > .virtual-flow > .clipped-container > .sheet > .table-row-cell:filled:selected .text {
+    -fx-fill: #409eff; /* 选中时文字变蓝 */
+}
+
+/* 隐藏不必要的滚动条背景 */
+.table-view .scroll-bar:horizontal .track,
+.table-view .scroll-bar:vertical .track{
+    -fx-background-color: transparent;
+}
