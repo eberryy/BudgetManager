@@ -4,6 +4,7 @@ module cn.bit.budget.budgetmanager {
     requires org.apache.poi.poi;
     requires org.apache.poi.ooxml;
     requires com.jfoenix;
+    requires javafx.web;
     // 允许 JFoenix 反射访问你的 Controller 包，否则 UI 组件没法注入
     opens cn.bit.budget.controller to javafx.fxml, com.jfoenix;
 

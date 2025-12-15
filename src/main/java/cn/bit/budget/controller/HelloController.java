@@ -129,27 +129,85 @@ public class HelloController implements Initializable {
             }
         });
 
-        // 2. 设置分类列：显示 Emoji + 文本
+        // 2. 设置分类列：使用 WebView 加载 Twemoji 图片，实现全平台彩色显示
         colCategory.setCellFactory(column -> new TableCell<Bill, String>() {
+            private final javafx.scene.web.WebView webView = new javafx.scene.web.WebView();
+            private final javafx.scene.web.WebEngine webEngine = webView.getEngine();
+
+            {
+                webView.setPrefHeight(25);
+                webView.setMaxHeight(25);
+                webView.setPageFill(javafx.scene.paint.Color.TRANSPARENT);
+                webView.setContextMenuEnabled(false);
+            }
+
             @Override
             protected void updateItem(String category, boolean empty) {
                 super.updateItem(category, empty);
                 if (empty || category == null) {
-                    setText(null);
                     setGraphic(null);
+                    setText(null);
                 } else {
                     String emoji = CategoryManager.getEmoji(category);
 
-                    // 【核心修改】不使用 setText，而是使用 Text 节点
-                    // 这样可以精细控制字体，解决 Windows 下 Emoji 黑白的问题
-                    Text textNode = new Text(emoji + " " + category);
+                    // 【核心修改】不显示字符，而是生成 Twemoji 的图片链接
+                    String imgUrl = getTwemojiUrl(emoji);
 
-                    // 强制使用 Segoe UI Emoji 字体 (Windows 10/11 自带彩色 Emoji 字体)
-                    // 如果是 Mac，系统默认字体通常就能显示彩色，这里优先指定 Windows 的
-                    textNode.setFont(javafx.scene.text.Font.font("Segoe UI Emoji", 14));
+                    // 简单的 HTML，使用 Flex 布局居中
+                    String html = String.format("""
+                        <html>
+                        <body style='margin: 0; padding: 0; background-color: transparent; overflow: hidden; font-family: "Microsoft YaHei", sans-serif;'>
+                            <div style='
+                                display: inline-flex;
+                                align-items: center;
+                                background-color: #e6f7ff;
+                                border: 1px solid #91d5ff;
+                                border-radius: 4px;
+                                padding: 2px 8px;
+                                box-sizing: border-box;
+                                height: 22px;
+                                white-space: nowrap;
+                            '>
+                                <img src='%s' style='width: 16px; height: 16px; margin-right: 4px; vertical-align: middle;'>
+                                <span style='font-size: 12px; color: #096dd9; font-weight: bold;'>%s</span>
+                            </div>
+                        </body>
+                        </html>
+                        """, imgUrl, category);
 
-                    setGraphic(textNode);
-                    setText(null); // 清空默认文本
+                    webEngine.loadContent(html);
+                    setGraphic(webView);
+                    setText(null);
+                }
+            }
+
+            /**
+             * 修改后：从本地资源文件夹加载图片
+             * 确保图片放在 src/main/resources/cn/bit/budget/icons/ 目录下
+             */
+            private String getTwemojiUrl(String emoji) {
+                StringBuilder sb = new StringBuilder();
+                for (int i = 0; i < emoji.length(); ) {
+                    int codePoint = emoji.codePointAt(i);
+                    if (codePoint != 0xFE0F) { // 忽略变体符
+                        if (sb.length() > 0) sb.append("-");
+                        sb.append(Integer.toHexString(codePoint).toLowerCase());
+                    }
+                    i += Character.charCount(codePoint);
+                }
+
+                String iconName = sb.toString() + ".png";
+
+                // 【核心修改】获取本地资源的 URL
+                // 注意：路径必须以 / 开头，对应 resources 目录下的结构
+                java.net.URL localUrl = getClass().getResource("/cn/bit/budget/icons/" + iconName);
+
+                if (localUrl != null) {
+                    return localUrl.toExternalForm();
+                } else {
+                    // 如果万一忘了下载某张图，可以返回一个默认图，或者保持 CDN 作为备选
+                    // System.err.println("缺失图标: " + iconName);
+                    return "https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/72x72/" + iconName;
                 }
             }
         });

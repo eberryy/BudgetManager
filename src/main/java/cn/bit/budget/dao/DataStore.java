@@ -8,6 +8,11 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.nio.charset.StandardCharsets;
+import java.io.FileOutputStream;
+import java.io.FileInputStream;
+import java.io.OutputStreamWriter;
+import java.io.InputStreamReader;
 
 /**
  * 数据存储类 (V2.1)
@@ -18,17 +23,21 @@ public class DataStore {
     private static final String FILE_NAME = "budget_data.csv";
     private static final DateTimeFormatter DATETIME_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
 
-    private DataStore() {}
+    private DataStore() {
+    }
+
 
     public static void saveBills(List<Bill> bills) {
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(FILE_NAME))) {
+        // 【修复】使用 OutputStreamWriter 强制指定 UTF-8 编码写入
+        try (BufferedWriter writer = new BufferedWriter(
+                new OutputStreamWriter(new FileOutputStream(FILE_NAME), StandardCharsets.UTF_8))) { //
+
             for (Bill bill : bills) {
-                // 格式化写入：8 个字段
                 String line = String.format("%s,%.2f,%s,%s,%s,%s,%s,%s",
                         bill.getId(),
                         bill.getAmount(),
                         escapeCsv(bill.getCategory()),
-                        escapeCsv(bill.getSubCategory()), // 【新增】写入二级分类
+                        escapeCsv(bill.getSubCategory()),
                         bill.getDate().toString(),
                         escapeCsv(bill.getType()),
                         escapeCsv(bill.getRemark()),
@@ -47,7 +56,7 @@ public class DataStore {
         File file = new File(FILE_NAME);
         if (!file.exists()) return bills;
 
-        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 if (line.trim().isEmpty()) continue;
@@ -97,14 +106,11 @@ public class DataStore {
             e.printStackTrace();
         }
         bills.sort((b1, b2) -> {
-            if
-            (b2.getDate().equals(b1.getDate())) {
+            if (b2.getDate().equals(b1.getDate())) {
                 // 如果日期相同，按创建时间倒序（后记的在上面）
-                return
-                        b2.getCreateTime().compareTo(b1.getCreateTime());
+                return b2.getCreateTime().compareTo(b1.getCreateTime());
             }
-            return
-                    b2.getDate().compareTo(b1.getDate());
+            return b2.getDate().compareTo(b1.getDate());
         });
 
         System.out.println(

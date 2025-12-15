@@ -5,6 +5,7 @@ import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 import java.io.*;
+import java.nio.charset.Charset; // 引入 Charset
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -14,7 +15,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * 账单导入工具类 (V2.1)
+ * 账单导入工具类 (V2.2 - 修复导入乱码版)
  * 适配二级分类模型
  */
 public class BillImportUtil {
@@ -36,6 +37,7 @@ public class BillImportUtil {
     }
 
     private static List<Bill> parseWeChatExcel(File file) {
+        // Excel 文件 (xlsx) 内部是 XML 结构，POI 会自动处理编码，通常不需要改动
         List<Bill> importedBills = new ArrayList<>();
         boolean isDataStart = false;
 
@@ -68,12 +70,11 @@ public class BillImportUtil {
 
                     String remark = partner + "-" + goods + " (导入)";
 
-                    // 【关键修复】适配新的构造函数
                     Bill bill = new Bill(
                             UUID.randomUUID().toString(),
                             amount,
                             category,
-                            null, // subCategory: 导入时暂无二级分类，传 null
+                            null,
                             date,
                             type,
                             remark,
@@ -95,12 +96,18 @@ public class BillImportUtil {
         List<Bill> importedBills = new ArrayList<>();
         boolean isDataStart = false;
 
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8))) {
+        // 【关键修复】
+        // 微信/支付宝导出的 CSV 通常是 GBK 编码。
+        // 如果这里强行用 UTF-8 读，中文就会变成 ""
+        Charset csvCharset = Charset.forName("GBK");
+
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(file), csvCharset))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 line = line.trim();
                 if (line.isEmpty()) continue;
 
+                // 微信账单头部可能有非CSV格式的说明，跳过直到找到表头
                 if (!isDataStart) {
                     if (line.contains("交易时间")) isDataStart = true;
                     continue;
@@ -114,7 +121,7 @@ public class BillImportUtil {
                     LocalDateTime dateTime = LocalDateTime.parse(timeStr, TIME_FORMATTER);
                     LocalDate date = dateTime.toLocalDate();
 
-                    String category = clean(columns[1]);
+                    String category = clean(columns[1]); // 这里必须是正确的中文，否则 CategoryManager 匹配不到 Emoji
                     String partner = clean(columns[2]);
                     String goods = clean(columns[3]);
                     String type = clean(columns[4]);
@@ -123,12 +130,11 @@ public class BillImportUtil {
 
                     String remark = partner + "-" + goods + " (导入)";
 
-                    // 【关键修复】适配新的构造函数
                     Bill bill = new Bill(
                             UUID.randomUUID().toString(),
                             amount,
                             category,
-                            null, // subCategory: 传 null
+                            null,
                             date,
                             type,
                             remark,
@@ -137,7 +143,7 @@ public class BillImportUtil {
                     importedBills.add(bill);
 
                 } catch (Exception e) {
-                    // ignore
+                    // ignore format errors
                 }
             }
         } catch (IOException e) {
