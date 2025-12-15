@@ -56,6 +56,34 @@
     -fx-effect: dropshadow(three-pass-box, rgba(245,108,108,0.4), 8, 0, 0, 1);
 }
 
+/* --- 类型 C: 圆形添加按钮 (黄色) --- */
+/* 对应 FXML 中的 styleClass="add-category-button" */
+.add-category-button {
+    -fx-background-color: #ffc107; /* 黄色背景 */
+    -fx-text-fill: white;           /* 白色文字 */
+    -fx-font-size: 16px;            /* 加号字体大小 */
+    -fx-font-weight: bold;
+    -fx-background-radius: 50%;     /* 圆形 */
+    -fx-border-radius: 50%;         /* 圆形边框 */
+    -fx-min-width: 28px;            /* 固定宽度 */
+    -fx-max-width: 28px;
+    -fx-min-height: 28px;           /* 固定高度 */
+    -fx-max-height: 28px;
+    -fx-padding: 0;                 /* 去掉内边距，让加号居中 */
+    -fx-cursor: hand;
+}
+
+.add-category-button:hover {
+    -fx-background-color: #ffb300; /* 悬停时颜色稍深 */
+    -fx-effect: dropshadow(three-pass-box, rgba(255,193,7,0.5), 8, 0, 0, 2);
+}
+
+.add-category-button:pressed {
+    -fx-background-color: #ffa000; /* 按下时更深 */
+    -fx-scale-x: 0.95;
+    -fx-scale-y: 0.95;
+}
+
 /* ==================================
    输入框与下拉框 (Inputs)
    ================================== */

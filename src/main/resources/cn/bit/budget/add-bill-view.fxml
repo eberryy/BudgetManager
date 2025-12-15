@@ -36,8 +36,9 @@
         <HBox spacing="10" alignment="CENTER_LEFT">
             <Label text="分类" />
             <ComboBox fx:id="parentCategoryBox" prefWidth="120" promptText="一级分类"/>
+            <JFXButton text="+" onAction="#onAddParentCategory" styleClass="add-category-button"/>
             <ComboBox fx:id="childCategoryBox" prefWidth="120" promptText="二级分类" editable="true"/>
-            <JFXButton text="+" onAction="#onAddCustomCategory" style="-fx-background-color:#eee;"/>
+            <JFXButton text="+" onAction="#onAddChildCategory" styleClass="add-category-button"/>
         </HBox>
 
         <Label text="金额" />

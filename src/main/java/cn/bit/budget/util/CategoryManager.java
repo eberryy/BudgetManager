@@ -1,5 +1,7 @@
 package cn.bit.budget.util;
 
+import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 public class CategoryManager {
@@ -10,8 +12,12 @@ public class CategoryManager {
     // 存储分类名称 -> Emoji 的映射
     private static final Map<String, String> EMOJI_MAP = new HashMap<>();
 
+    // 自定义分类存储文件
+    private static final String CUSTOM_CATEGORY_FILE = "custom_categories.csv";
+
     static {
         initDefaultCategories();
+        loadCustomCategories(); // 加载用户自定义分类
     }
 
     /**
@@ -183,16 +189,17 @@ public class CategoryManager {
         return CATEGORY_MAP.getOrDefault(parent, new ArrayList<>());
     }
 
-    // 获取 Emoji，如果没有则返回默认图标 (🏷️ \uD83C\uDFF7\uFE0F)
+    // 获取 Emoji，如果没有则返回默认图标 (🏷 \uD83C\uDFF7)
     public static String getEmoji(String categoryName) {
-        return EMOJI_MAP.getOrDefault(categoryName, "\uD83C\uDFF7\uFE0F");
+        return EMOJI_MAP.getOrDefault(categoryName, "\uD83C\uDFF7");
     }
 
     // 动态添加一级分类
     public static void addCustomParentCategory(String parentName) {
         if (!CATEGORY_MAP.containsKey(parentName)) {
             CATEGORY_MAP.put(parentName, new ArrayList<>());
-            EMOJI_MAP.put(parentName, "\uD83C\uDFF7\uFE0F");
+            EMOJI_MAP.put(parentName, "\uD83C\uDFF7");
+            saveCustomCategories(); // 持久化保存
         }
     }
 
@@ -202,12 +209,83 @@ public class CategoryManager {
             List<String> children = CATEGORY_MAP.get(parent);
             if (!children.contains(childName)) {
                 children.add(childName);
-                EMOJI_MAP.put(childName, "\uD83C\uDFF7\uFE0F");
+                EMOJI_MAP.put(childName, "\uD83C\uDFF7");
+                saveCustomCategories(); // 持久化保存
             }
         }
     }
 
     public static String getAllCategoriesString() {
         return CATEGORY_MAP.keySet().toString();
+    }
+
+    /**
+     * 保存自定义分类到文件
+     * 格式：parent,child1;child2;child3
+     */
+    private static void saveCustomCategories() {
+        try (BufferedWriter writer = new BufferedWriter(
+                new OutputStreamWriter(new FileOutputStream(CUSTOM_CATEGORY_FILE), StandardCharsets.UTF_8))) {
+            
+            for (Map.Entry<String, List<String>> entry : CATEGORY_MAP.entrySet()) {
+                String parent = entry.getKey();
+                List<String> children = entry.getValue();
+                
+                // 格式：一级分类,二级分类1;二级分类2;二级分类3
+                String childrenStr = String.join(";", children);
+                writer.write(parent + "," + childrenStr);
+                writer.newLine();
+            }
+        } catch (IOException e) {
+            System.err.println("保存自定义分类失败：" + e.getMessage());
+        }
+    }
+
+    /**
+     * 从文件加载自定义分类
+     */
+    private static void loadCustomCategories() {
+        File file = new File(CUSTOM_CATEGORY_FILE);
+        if (!file.exists()) {
+            return; // 文件不存在，使用默认分类
+        }
+
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8))) {
+            
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (line.trim().isEmpty()) continue;
+                
+                String[] parts = line.split(",", 2);
+                if (parts.length < 1) continue;
+                
+                String parent = parts[0].trim();
+                
+                // 如果是新的一级分类（不在默认分类中），添加它
+                if (!CATEGORY_MAP.containsKey(parent)) {
+                    CATEGORY_MAP.put(parent, new ArrayList<>());
+                    EMOJI_MAP.put(parent, "\uD83C\uDFF7");
+                }
+                
+                // 处理二级分类
+                if (parts.length == 2 && !parts[1].trim().isEmpty()) {
+                    String[] children = parts[1].split(";");
+                    List<String> childList = CATEGORY_MAP.get(parent);
+                    
+                    for (String child : children) {
+                        String childName = child.trim();
+                        if (!childName.isEmpty() && !childList.contains(childName)) {
+                            childList.add(childName);
+                            if (!EMOJI_MAP.containsKey(childName)) {
+                                EMOJI_MAP.put(childName, "\uD83C\uDFF7");
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (IOException e) {
+            System.err.println("加载自定义分类失败：" + e.getMessage());
+        }
     }
 }

@@ -34,9 +34,9 @@ public class AddBillController {
         // 1. 初始化日期为今天
         datePicker.setValue(LocalDate.now());
 
-        // 2. 初始化一级分类
+        // 2. 初始化一级分类（不可编辑）
         parentCategoryBox.getItems().addAll(CategoryManager.getParentCategories());
-        parentCategoryBox.setEditable(true);
+        parentCategoryBox.setEditable(false); // 改为不可编辑
 
         // 3. 监听一级分类选择事件 (级联逻辑)
         parentCategoryBox.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
@@ -55,10 +55,32 @@ public class AddBillController {
     }
 
     /**
-     * 响应 "+" 按钮：添加自定义分类
+     * 响应一级分类 "+" 按钮：添加自定义一级分类
      */
     @FXML
-    void onAddCustomCategory(ActionEvent event) {
+    void onAddParentCategory(ActionEvent event) {
+        TextInputDialog dialog = new TextInputDialog();
+        dialog.setTitle("新增一级分类");
+        dialog.setHeaderText("添加自定义一级分类");
+        dialog.setContentText("分类名称:");
+
+        dialog.showAndWait().ifPresent(name -> {
+            if (!name.trim().isEmpty()) {
+                // 1. 存入管理器（会自动保存）
+                CategoryManager.addCustomParentCategory(name);
+                // 2. 刷新下拉框
+                parentCategoryBox.getItems().add(name);
+                // 3. 自动选中新添加的分类
+                parentCategoryBox.getSelectionModel().select(name);
+            }
+        });
+    }
+
+    /**
+     * 响应二级分类 "+" 按钮：添加自定义二级分类
+     */
+    @FXML
+    void onAddChildCategory(ActionEvent event) {
         String currentParent = parentCategoryBox.getValue();
         if (currentParent == null) {
             showAlert("请先选择一级分类");
@@ -66,13 +88,13 @@ public class AddBillController {
         }
 
         TextInputDialog dialog = new TextInputDialog();
-        dialog.setTitle("新增分类");
-        dialog.setHeaderText("在【" + currentParent + "】下添加子分类");
+        dialog.setTitle("新增二级分类");
+        dialog.setHeaderText("在【" + currentParent + "】下添加二级分类");
         dialog.setContentText("分类名称:");
 
         dialog.showAndWait().ifPresent(name -> {
             if (!name.trim().isEmpty()) {
-                // 1. 存入管理器
+                // 1. 存入管理器（会自动保存）
                 CategoryManager.addCustomChildCategory(currentParent, name);
                 // 2. 刷新当前下拉框
                 childCategoryBox.getItems().add(name);
@@ -91,11 +113,7 @@ public class AddBillController {
 
         // 获取分类
         String parentCat = parentCategoryBox.getValue();
-        //允许手动输入一级分类 (getValue() 用于获取不可编辑 ComboBox 的值)
-        if (parentCat == null || parentCat.trim().isEmpty()) {
-            // 如果 getValue 为空，尝试获取编辑器里的文本
-            parentCat = parentCategoryBox.getEditor().getText();
-        }
+        
         // 允许手动输入二级分类 (getEditor().getText() 用于获取可编辑 ComboBox 的输入)
         String subCat = childCategoryBox.getValue();
         if (subCat == null && childCategoryBox.getEditor() != null) {
@@ -103,7 +121,7 @@ public class AddBillController {
         }
 
         // 校验
-        if (date == null || parentCat == null || amountStr == null || amountStr.trim().isEmpty()) {
+        if (date == null || parentCat == null || parentCat.trim().isEmpty() || amountStr == null || amountStr.trim().isEmpty()) {
             showAlert("请填写完整信息（日期、一级分类、金额）。");
             return;
         }
@@ -118,12 +136,9 @@ public class AddBillController {
             String type = rbExpense.isSelected() ? "支出" : "收入";
             String remark = remarkField.getText();
             if (remark == null) remark = "";
-            // 【新增】如果是一级新分类，注册到 Manager
-            if (!CategoryManager.getParentCategories().contains(parentCat)) {
-                CategoryManager.addCustomParentCategory(parentCat);
-            }
+            
             // 如果用户手输了一个新的二级分类，自动保存到 CategoryManager
-            if (subCat != null && !subCat.isEmpty()) {
+            if (subCat != null && !subCat.trim().isEmpty()) {
                 CategoryManager.addCustomChildCategory(parentCat, subCat);
             }
 

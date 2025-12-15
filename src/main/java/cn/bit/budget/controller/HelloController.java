@@ -268,6 +268,32 @@ public class HelloController implements Initializable {
     }
 
     /**
+     * 主页面：添加自定义一级分类
+     */
+    @FXML
+    public void onAddFilterCategory(ActionEvent event) {
+        TextInputDialog dialog = new TextInputDialog();
+        dialog.setTitle("新增一级分类");
+        dialog.setHeaderText("添加自定义一级分类");
+        dialog.setContentText("分类名称:");
+
+        dialog.showAndWait().ifPresent(name -> {
+            if (!name.trim().isEmpty()) {
+                // 1. 添加到管理器（会自动保存）
+                CategoryManager.addCustomParentCategory(name);
+                // 2. 刷新下拉框
+                if (!filterCategoryBox.getItems().contains(name)) {
+                    filterCategoryBox.getItems().add(name);
+                }
+                // 3. 自动选中新添加的分类
+                filterCategoryBox.setValue(name);
+                // 4. 提示用户
+                showInfoAlert("添加成功", "已添加一级分类：" + name);
+            }
+        });
+    }
+
+    /**
      * 核心方法：同时更新表格和统计图
      * @param targetList 经过筛选后的账单列表
      */
@@ -322,31 +348,82 @@ public class HelloController implements Initializable {
                 String label;
 
                 if (isViewingSubCategories) {
-                    // 如果是二级分类，直接显示名字（因为我们只定义了一级分类的Emoji）
-                    // 你也可以以后给二级分类也加Emoji，这里暂时只显示文字
-                    label = categoryName;
+                    // 如果是二级分类，也显示emoji
+                    String emoji = CategoryManager.getEmoji(categoryName);
+                    label = emoji + " " + categoryName;
                 } else {
-                    // 如果是一级分类，加上 Emoji 前缀！让图表更好看
-                    // 例如： "🍔 餐饮"
+                    // 如果是一级分类，加上 Emoji 前缀
                     String emoji = CategoryManager.getEmoji(categoryName);
                     label = emoji + " " + categoryName;
                 }
 
-                // 可选优化：在标签里直接显示金额，如 "🍔 餐饮 (150.0)"
-                // label = String.format("%s (%.1f)", label, totalAmount);
-
-                pieData.add(new PieChart.Data(label, totalAmount));
+                // 创建饼图数据
+                PieChart.Data data = new PieChart.Data(label, totalAmount);
+                pieData.add(data);
+                
+                // 保存分类信息，用于tooltip
+                final String categoryForTooltip = categoryName;
+                
+                // 在数据添加到图表后，为饼图扇区添加tooltip
+                javafx.application.Platform.runLater(() -> {
+                    if (data.getNode() != null) {
+                        // 为饼图扇区添加tooltip，显示详细信息
+                        javafx.scene.control.Tooltip tooltip = new javafx.scene.control.Tooltip(
+                            String.format("%s\n金额: ¥%.2f\n占比: %.1f%%", 
+                                categoryForTooltip, 
+                                totalAmount,
+                                (totalAmount / statsMap.values().stream().mapToDouble(Double::doubleValue).sum()) * 100)
+                        );
+                        javafx.scene.control.Tooltip.install(data.getNode(), tooltip);
+                    }
+                });
             }
         });
 
         // 步骤 D: 只有当数据发生变化时才重置数据，防止闪烁
         expensePieChart.setData(pieData);
+        
+        // 步骤 D2: 应用emoji字体样式到图例标签
+        expensePieChart.setLegendVisible(true);
+        javafx.application.Platform.runLater(() -> {
+            applyEmojiStyleToPieChart();
+        });
 
         // 步骤 E: (可选) 设置饼图标题动态变化
         if (isViewingSubCategories) {
             expensePieChart.setTitle(currentFilterCat + " - 支出明细");
         } else {
             expensePieChart.setTitle("总支出构成");
+        }
+    }
+
+    /**
+     * 为饼图应用emoji字体样式，确保emoji显示清晰
+     */
+    private void applyEmojiStyleToPieChart() {
+        // 查找图例节点并应用emoji字体
+        for (javafx.scene.Node node : expensePieChart.lookupAll(".chart-legend")) {
+            if (node instanceof javafx.scene.layout.Region) {
+                javafx.scene.layout.Region legend = (javafx.scene.layout.Region) node;
+                
+                // 遍历图例中的每个标签
+                for (javafx.scene.Node item : legend.getChildrenUnmodifiable()) {
+                    if (item instanceof javafx.scene.control.Label) {
+                        javafx.scene.control.Label label = (javafx.scene.control.Label) item;
+                        // 应用emoji字体，确保彩色显示
+                        label.setStyle("-fx-font-family: 'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', sans-serif; -fx-font-size: 14px;");
+                    }
+                }
+            }
+        }
+        
+        // 查找饼图标签节点并应用emoji字体
+        for (javafx.scene.Node node : expensePieChart.lookupAll(".chart-pie-label")) {
+            if (node instanceof javafx.scene.text.Text) {
+                javafx.scene.text.Text text = (javafx.scene.text.Text) node;
+                // 应用emoji字体
+                text.setStyle("-fx-font-family: 'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', sans-serif;");
+            }
         }
     }
 

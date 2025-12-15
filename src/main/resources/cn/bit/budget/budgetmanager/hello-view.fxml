@@ -42,6 +42,7 @@
 
                                 <Label text="分类:" />
                                 <ComboBox fx:id="filterCategoryBox" prefWidth="100.0" promptText="全部分类" />
+                                <JFXButton text="+" onAction="#onAddFilterCategory" styleClass="add-category-button" />
 
                                 <JFXButton buttonType="RAISED" styleClass="action-button" onAction="#onSearchClick" text="查询/刷新" />
                                 <JFXButton buttonType="RAISED" styleClass="action-button" onAction="#onThisMonthClick" text="本月" />
