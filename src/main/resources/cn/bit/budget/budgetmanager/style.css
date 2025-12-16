@@ -150,3 +150,53 @@
 .table-view .scroll-bar:vertical .track{
     -fx-background-color: transparent;
 }
+
+/* ==================================
+   现代化弹窗 (Modern Dialogs)
+   ================================== */
+
+/* 弹窗容器背景 */
+.jfx-dialog-overlay-pane {
+    -fx-background-color: rgba(0, 0, 0, 0.4); /* 半透明黑色遮罩 */
+}
+
+/* 弹窗卡片主体 */
+.jfx-dialog-layout {
+    -fx-background-color: white;
+    -fx-background-radius: 12px; /* 大圆角 */
+    -fx-border-radius: 12px;
+    -fx-padding: 20px;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.2), 15, 0, 0, 5); /* 深度阴影 */
+}
+
+/* 弹窗标题 */
+.jfx-dialog-layout .heading {
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #303133;
+    -fx-padding: 0 0 10 0;
+}
+
+/* 弹窗内容文字 */
+.jfx-dialog-layout .body {
+    -fx-font-size: 14px;
+    -fx-text-fill: #606266;
+    -fx-padding: 10 0 20 0;
+}
+
+/* 输入框美化 (JFXTextField) */
+.material-field {
+    -fx-background-color: transparent;
+    -fx-prompt-text-fill: #909399;
+    -fx-text-fill: #303133;
+    -fx-font-size: 14px;
+}
+.material-field:focused {
+    -fx-prompt-text-fill: #409eff; /* 聚焦时提示词变蓝 */
+}
+
+/* 按钮栏右对齐 */
+.jfx-dialog-layout .actions {
+    -fx-alignment: CENTER_RIGHT;
+    -fx-spacing: 10px;
+}

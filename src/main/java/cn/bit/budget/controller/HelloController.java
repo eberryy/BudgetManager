@@ -35,6 +35,10 @@ import java.util.ResourceBundle;
 import java.util.stream.Collectors;
 import javafx.scene.paint.Color;
 
+import com.jfoenix.controls.JFXTextField;
+import javafx.scene.layout.VBox;
+import java.util.function.Consumer;
+
 
 /**
  * 主界面控制器 (V2.0)
@@ -79,6 +83,7 @@ public class HelloController implements Initializable {
     // 注入 StackPane
     @FXML
     private StackPane rootStackPane;
+
 
     // --- 核心数据源 ---
     // 内存中保存的所有账单数据 (Master List)
@@ -270,27 +275,57 @@ public class HelloController implements Initializable {
     /**
      * 主页面：添加自定义一级分类
      */
+    /**
+     * 现代化的新增一级分类
+     */
     @FXML
     public void onAddFilterCategory(ActionEvent event) {
-        TextInputDialog dialog = new TextInputDialog();
-        dialog.setTitle("新增一级分类");
-        dialog.setHeaderText("添加自定义一级分类");
-        dialog.setContentText("分类名称:");
-
-        dialog.showAndWait().ifPresent(name -> {
+        showInputDialog("新增一级分类", "请输入新的分类名称：", (name) -> {
             if (!name.trim().isEmpty()) {
-                // 1. 添加到管理器（会自动保存）
                 CategoryManager.addCustomParentCategory(name);
-                // 2. 刷新下拉框
                 if (!filterCategoryBox.getItems().contains(name)) {
                     filterCategoryBox.getItems().add(name);
                 }
-                // 3. 自动选中新添加的分类
                 filterCategoryBox.setValue(name);
-                // 4. 提示用户
                 showInfoAlert("添加成功", "已添加一级分类：" + name);
             }
         });
+    }
+
+    /**
+     * 通用：显示现代化输入弹窗
+     */
+    private void showInputDialog(String title, String prompt, Consumer<String> onConfirm) {
+        // 1. 创建布局容器
+        JFXDialogLayout content = new JFXDialogLayout();
+        content.setHeading(new Label(title));
+
+        // 2. 创建输入框
+        TextField inputField = new TextField();
+        inputField.setPromptText(prompt);
+        inputField.getStyleClass().add("material-field"); // 应用CSS
+        inputField.setPrefWidth(300);
+
+        VBox body = new VBox(inputField);
+        content.setBody(body);
+
+        // 3. 创建弹窗对象 (rootStackPane 是你在 HelloController 注入的 StackPane)
+        JFXDialog dialog = new JFXDialog(rootStackPane, content, JFXDialog.DialogTransition.CENTER);
+
+        // 4. 按钮
+        JFXButton btnCancel = new JFXButton("取消");
+        btnCancel.setStyle("-fx-text-fill: #909399; -fx-font-size: 14px;");
+        btnCancel.setOnAction(e -> dialog.close());
+
+        JFXButton btnConfirm = new JFXButton("确定");
+        btnConfirm.setStyle("-fx-text-fill: #409eff; -fx-font-weight: bold; -fx-font-size: 14px;");
+        btnConfirm.setOnAction(e -> {
+            onConfirm.accept(inputField.getText());
+            dialog.close();
+        });
+
+        content.setActions(btnCancel, btnConfirm);
+        dialog.show();
     }
 
     /**
@@ -432,7 +467,7 @@ public class HelloController implements Initializable {
     @FXML
     public void onAddClick(ActionEvent event) {
         try {
-            FXMLLoader loader = new FXMLLoader(HelloController.class.getResource("/cn/bit/budget/add-bill-view.fxml"));
+            FXMLLoader loader = new FXMLLoader(HelloController.class.getResource("/cn/bit/budget/budgetmanager/add-bill-view.fxml"));
             Parent root = loader.load();
             AddBillController addController = loader.getController();
 

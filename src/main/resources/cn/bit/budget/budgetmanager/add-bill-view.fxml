@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import com.jfoenix.controls.*?>
+<?import javafx.geometry.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.*?>
+<?import java.lang.String?>
+
+<StackPane fx:id="rootPane" prefHeight="500.0" prefWidth="400.0" style="-fx-background-color: white;" stylesheets="@style.css" xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1" fx:controller="cn.bit.budget.controller.AddBillController">
+    <children>
+        <VBox spacing="20.0">
+            <padding>
+                <Insets bottom="30.0" left="30.0" right="30.0" top="30.0" />
+            </padding>
+            <children>
+                <Label style="-fx-font-size: 22px; -fx-font-weight: bold; -fx-text-fill: #303133;" text="记一笔" />
+
+                <Separator />
+
+                <HBox alignment="CENTER_LEFT" spacing="20.0">
+                    <children>
+                        <Label style="-fx-font-weight: bold;" text="类型：" />
+                        <RadioButton fx:id="rbExpense" selected="true" text="支出">
+                            <toggleGroup>
+                                <ToggleGroup fx:id="typeGroup" />
+                            </toggleGroup>
+                            <styleClass>
+                                <String fx:value="custom-radio" />
+                            </styleClass>
+                        </RadioButton>
+                        <RadioButton fx:id="rbIncome" text="收入" toggleGroup="$typeGroup" />
+                    </children>
+                </HBox>
+
+                <HBox alignment="CENTER_LEFT" spacing="10.0" style="-fx-background-color: #f5f7fa; -fx-background-radius: 8; -fx-padding: 10;">
+                    <children>
+                        <Label style="-fx-font-size: 20px;" text="¥" textFill="#909399" />
+                        <TextField fx:id="amountField" promptText="0.00" style="-fx-background-color: transparent; -fx-font-size: 24px; -fx-font-weight: bold;" HBox.hgrow="ALWAYS" />
+                    </children>
+                </HBox>
+
+                <GridPane hgap="10.0" vgap="15.0">
+                    <VBox.margin>
+                        <Insets top="15.0" />
+                    </VBox.margin>
+                    <columnConstraints>
+                        <ColumnConstraints hgrow="SOMETIMES" minWidth="10.0" percentWidth="50.0" />
+                        <ColumnConstraints hgrow="SOMETIMES" minWidth="10.0" percentWidth="50.0" />
+                    </columnConstraints>
+                    <rowConstraints>
+                        <RowConstraints minHeight="10.0" vgrow="SOMETIMES" />
+                    </rowConstraints>
+                    <children>
+                        <VBox spacing="5.0">
+                            <children>
+                                <Label text="一级分类" textFill="#909399" />
+                                <HBox alignment="CENTER_LEFT" spacing="5">
+                                    <ComboBox fx:id="parentCategoryBox" prefWidth="150.0" styleClass="modern-combo" />
+                                    <JFXButton text="+" onAction="#onAddParentCategory" styleClass="add-category-button" />
+                                </HBox>
+                            </children>
+                        </VBox>
+                        <VBox spacing="5.0" GridPane.columnIndex="1">
+                            <children>
+                                <Label text="二级分类" textFill="#909399" />
+                                <HBox alignment="CENTER_LEFT" spacing="5">
+                                    <ComboBox fx:id="childCategoryBox" editable="true" prefWidth="150.0" styleClass="modern-combo" />
+                                    <JFXButton text="+" onAction="#onAddChildCategory" styleClass="add-category-button" />
+                                </HBox>
+                            </children>
+                        </VBox>
+                    </children>
+                </GridPane>
+
+                <VBox spacing="5.0">
+                    <children>
+                        <Label text="日期" textFill="#909399" />
+                        <DatePicker fx:id="datePicker" prefWidth="400.0" styleClass="modern-date-picker" />
+                    </children>
+                </VBox>
+
+                <VBox spacing="5.0">
+                    <children>
+                        <Label text="备注" textFill="#909399" />
+                        <TextField fx:id="remarkField" promptText="写点什么..." style="-fx-background-color: white; -fx-border-color: #dcdfe6; -fx-border-radius: 4; -fx-padding: 8;" />
+                    </children>
+                </VBox>
+
+                <Region VBox.vgrow="ALWAYS" />
+
+                <HBox alignment="CENTER_RIGHT" spacing="15.0">
+                    <children>
+                        <JFXButton onAction="#onCancel" text="取消" style="-fx-font-size: 14px; -fx-text-fill: #909399; -fx-cursor: hand;" />
+                        <JFXButton onAction="#onSave" prefHeight="35.0" prefWidth="100.0" style="-fx-background-color: #409eff; -fx-text-fill: white; -fx-background-radius: 4; -fx-font-size: 14px; -fx-font-weight: bold;" text="保存" />
+                    </children>
+                </HBox>
+            </children>
+        </VBox>
+    </children>
+</StackPane>
