@@ -38,6 +38,8 @@ import javafx.scene.paint.Color;
 import com.jfoenix.controls.JFXTextField;
 import javafx.scene.layout.VBox;
 import java.util.function.Consumer;
+import com.jfoenix.controls.JFXSnackbar;
+import javafx.util.Duration;
 
 
 /**
@@ -136,14 +138,13 @@ public class HelloController implements Initializable {
 
         // 2. 设置分类列：使用 WebView 加载 Twemoji 图片，实现全平台彩色显示
         colCategory.setCellFactory(column -> new TableCell<Bill, String>() {
-            private final javafx.scene.web.WebView webView = new javafx.scene.web.WebView();
-            private final javafx.scene.web.WebEngine webEngine = webView.getEngine();
+            private final javafx.scene.image.ImageView imageView = new javafx.scene.image.ImageView();
 
             {
-                webView.setPrefHeight(25);
-                webView.setMaxHeight(25);
-                webView.setPageFill(javafx.scene.paint.Color.TRANSPARENT);
-                webView.setContextMenuEnabled(false);
+                // 初始化 ImageView 大小
+                imageView.setFitHeight(20);
+                imageView.setFitWidth(20);
+                imageView.setPreserveRatio(true);
             }
 
             @Override
@@ -155,66 +156,35 @@ public class HelloController implements Initializable {
                 } else {
                     String emoji = CategoryManager.getEmoji(category);
 
-                    // 【核心修改】不显示字符，而是生成 Twemoji 的图片链接
-                    String imgUrl = getTwemojiUrl(emoji);
+                    // 1. 获取图片路径 (和之前逻辑一样，算出文件名)
+                    String iconName = getIconName(emoji);
 
-                    // 简单的 HTML，使用 Flex 布局居中
-                    String html = String.format("""
-                        <html>
-                        <body style='margin: 0; padding: 0; background-color: transparent; overflow: hidden; font-family: "Microsoft YaHei", sans-serif;'>
-                            <div style='
-                                display: inline-flex;
-                                align-items: center;
-                                background-color: #e6f7ff;
-                                border: 1px solid #91d5ff;
-                                border-radius: 4px;
-                                padding: 2px 8px;
-                                box-sizing: border-box;
-                                height: 22px;
-                                white-space: nowrap;
-                            '>
-                                <img src='%s' style='width: 16px; height: 16px; margin-right: 4px; vertical-align: middle;'>
-                                <span style='font-size: 12px; color: #096dd9; font-weight: bold;'>%s</span>
-                            </div>
-                        </body>
-                        </html>
-                        """, imgUrl, category);
-
-                    webEngine.loadContent(html);
-                    setGraphic(webView);
-                    setText(null);
-                }
-            }
-
-            /**
-             * 修改后：从本地资源文件夹加载图片
-             * 确保图片放在 src/main/resources/cn/bit/budget/icons/ 目录下
-             */
-            private String getTwemojiUrl(String emoji) {
-                StringBuilder sb = new StringBuilder();
-                for (int i = 0; i < emoji.length(); ) {
-                    int codePoint = emoji.codePointAt(i);
-                    if (codePoint != 0xFE0F) { // 忽略变体符
-                        if (sb.length() > 0) sb.append("-");
-                        sb.append(Integer.toHexString(codePoint).toLowerCase());
+                    // 2. 使用 JavaFX 原生 Image 加载 (带缓存，性能极高)
+                    try {
+                        // 注意：路径必须保证正确，getResourceAsStream 是读取 jar/classes 内部资源的最佳方式
+                        java.io.InputStream is = getClass().getResourceAsStream("/cn/bit/budget/icons/" + iconName);
+                        if (is != null) {
+                            imageView.setImage(new javafx.scene.image.Image(is));
+                        } else {
+                            // 如果找不到图片，可以在这里加载一个默认的“问号”图，或者留空
+                            // System.out.println("找不到图标: " + iconName);
+                            imageView.setImage(null);
+                        }
+                    } catch (Exception e) {
+                        imageView.setImage(null);
                     }
-                    i += Character.charCount(codePoint);
-                }
 
-                String iconName = sb.toString() + ".png";
+                    // 3. 设置文字和图标的排版
+                    setText(category); // 直接显示文字
+                    setGraphic(imageView); // 图标放在左边
+                    setContentDisplay(ContentDisplay.LEFT); // 图标在左，文字在右
+                    setGraphicTextGap(8); // 图标和文字的间距
 
-                // 【核心修改】获取本地资源的 URL
-                // 注意：路径必须以 / 开头，对应 resources 目录下的结构
-                java.net.URL localUrl = getClass().getResource("/cn/bit/budget/icons/" + iconName);
-
-                if (localUrl != null) {
-                    return localUrl.toExternalForm();
-                } else {
-                    // 如果万一忘了下载某张图，可以返回一个默认图，或者保持 CDN 作为备选
-                    // System.err.println("缺失图标: " + iconName);
-                    return "https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/72x72/" + iconName;
+                    // 4. 给文字加点样式 (可选)
+                    setStyle("-fx-text-fill: #606266; -fx-font-weight: bold; -fx-alignment: CENTER-LEFT;");
                 }
             }
+
         });
 
         // 3. 开启表格多选
@@ -228,6 +198,19 @@ public class HelloController implements Initializable {
         onThisMonthClick(null);
     }
 
+    // 辅助方法：把 Emoji 转换成文件名 (从之前的逻辑提取出来的)
+    private String getIconName(String emoji) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < emoji.length(); ) {
+            int codePoint = emoji.codePointAt(i);
+            if (codePoint != 0xFE0F) {
+                if (sb.length() > 0) sb.append("-");
+                sb.append(Integer.toHexString(codePoint).toLowerCase());
+            }
+            i += Character.charCount(codePoint);
+        }
+        return sb.toString() + ".png";
+    }
     /**
      * 核心方法：点击“查询/刷新”
      * 根据筛选条件过滤 allBills，并更新 UI
@@ -287,7 +270,7 @@ public class HelloController implements Initializable {
                     filterCategoryBox.getItems().add(name);
                 }
                 filterCategoryBox.setValue(name);
-                showInfoAlert("添加成功", "已添加一级分类：" + name);
+                showTopRightSuccess(name, "已添加一级分类：" + name);
             }
         });
     }
@@ -546,8 +529,7 @@ public class HelloController implements Initializable {
                 allBills.addAll(importedBills);
                 DataStore.saveBills(allBills);
                 onSearchClick(null); // 刷新界面
-
-                showInfoAlert("导入成功", "成功导入了 " + importedBills.size() + " 条账单记录！");
+                showGeneralSuccess("成功导入 " + importedBills.size() + " 条账单！");
             } else {
                 showWarningAlert("导入提示", "未解析出有效账单，请确认文件格式是否为微信导出格式。");
             }
@@ -608,13 +590,7 @@ public class HelloController implements Initializable {
         }
     }
 
-    private void showInfoAlert(String title, String content) {
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle(title);
-        alert.setHeaderText(null);
-        alert.setContentText(content);
-        alert.showAndWait();
-    }
+
 
     private void showWarningAlert(String title, String content) {
         Alert alert = new Alert(Alert.AlertType.WARNING);
@@ -622,5 +598,84 @@ public class HelloController implements Initializable {
         alert.setHeaderText(null);
         alert.setContentText(content);
         alert.showAndWait();
+    }
+
+// ==========================================
+    //       ✨ 通用右上角胶囊弹窗逻辑 ✨
+    // ==========================================
+
+    /**
+     * 场景 A：添加分类成功（自动根据分类名找图标）
+     */
+    private void showTopRightSuccess(String categoryName, String message) {
+        String emoji = CategoryManager.getEmoji(categoryName);
+        // 调用通用方法
+        showUniversalToast(emoji, message);
+    }
+
+    /**
+     * 场景 B：通用操作成功（如导入成功，手动指定一个图标，这里用 🎉）
+     */
+    private void showGeneralSuccess(String message) {
+        // \uD83C\uDF89 是 🎉 的 Unicode，确保你的 icons 文件夹里有 1f389.png
+        // 如果没有这个图，代码里的 try-catch 会自动处理，只显示文字
+        showUniversalToast("\uD83C\uDF89", message);
+    }
+
+    /**
+     * 核心私有方法：构建并显示弹窗
+     * @param emojiStr Emoji 字符 (用于查找文件名)
+     * @param message  提示文字
+     */
+    private void showUniversalToast(String emojiStr, String message) {
+        // 1. 创建容器 HBox
+        javafx.scene.layout.HBox toast = new javafx.scene.layout.HBox();
+        toast.getStyleClass().add("top-right-toast");
+
+        // 🔥🔥🔥 核心修复：禁止 StackPane 拉伸这个 HBox 🔥🔥🔥
+        // USE_PREF_SIZE 告诉父容器：我多大就是多大，别把老子拉宽！
+        toast.setMaxSize(javafx.scene.layout.Region.USE_PREF_SIZE, javafx.scene.layout.Region.USE_PREF_SIZE);
+
+        // 2. 创建图片 ImageView
+        javafx.scene.image.ImageView iconView = new javafx.scene.image.ImageView();
+        iconView.setFitWidth(24);
+        iconView.setFitHeight(24);
+
+        try {
+            String iconFile = getIconName(emojiStr); // 使用现有的转换方法
+            java.io.InputStream is = getClass().getResourceAsStream("/cn/bit/budget/icons/" + iconFile);
+            if (is != null) {
+                iconView.setImage(new javafx.scene.image.Image(is));
+                toast.getChildren().add(iconView); // 只有找到图片才添加
+            }
+        } catch (Exception e) {
+            // 图片加载失败不做处理，直接显示纯文字
+        }
+
+        // 3. 创建文字 Label
+        Label msgLabel = new Label(message);
+        msgLabel.setStyle("-fx-text-fill: #303133; -fx-font-weight: bold; -fx-font-size: 14px;");
+        toast.getChildren().add(msgLabel);
+
+        // 4. 定位到右上角
+        rootStackPane.getChildren().add(toast);
+        StackPane.setAlignment(toast, javafx.geometry.Pos.TOP_RIGHT);
+        StackPane.setMargin(toast, new javafx.geometry.Insets(20, 20, 0, 0));
+
+        // 5. 动画效果
+        javafx.animation.FadeTransition fadeIn = new javafx.animation.FadeTransition(Duration.millis(300), toast);
+        fadeIn.setFromValue(0);
+        fadeIn.setToValue(1);
+
+        javafx.animation.PauseTransition pause = new javafx.animation.PauseTransition(Duration.millis(2500));
+
+        javafx.animation.FadeTransition fadeOut = new javafx.animation.FadeTransition(Duration.millis(500), toast);
+        fadeOut.setFromValue(1);
+        fadeOut.setToValue(0);
+
+        fadeOut.setOnFinished(e -> rootStackPane.getChildren().remove(toast));
+
+        javafx.animation.SequentialTransition seq = new javafx.animation.SequentialTransition(fadeIn, pause, fadeOut);
+        seq.play();
     }
 }

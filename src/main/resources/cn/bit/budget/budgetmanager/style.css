@@ -200,3 +200,61 @@
     -fx-alignment: CENTER_RIGHT;
     -fx-spacing: 10px;
 }
+
+/* ==================================
+   玻璃拟态胶囊提示 (Glassmorphism Snackbar)
+   ================================== */
+
+/* 1. 胶囊容器：玻璃质感 + 黄色描边 */
+.jfx-snackbar-content {
+    /* 核心：白色背景，透明度 0.9 (90%)，模拟磨砂玻璃 */
+    -fx-background-color: rgba(255, 255, 255, 0.95);
+
+    /* 边框：你的主题黄色 */
+    -fx-border-color: #ffc107;
+    -fx-border-width: 2px;
+
+    /* 形状：30px 大圆角实现胶囊形 */
+    -fx-background-radius: 30px;
+    -fx-border-radius: 30px;
+
+    /* 阴影：柔和的投影，增加悬浮感 */
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.1), 15, 0, 0, 5);
+
+    /* 内边距：让文字不贴边 */
+    -fx-padding: 0 15px 0 15px;
+    -fx-min-height: 40px; /* 保证高度 */
+}
+
+/* 2. 提示文字：深灰 + 粗体 (确保在浅色玻璃上清晰可见) */
+.jfx-snackbar-toast {
+    -fx-text-fill: #303133; /* 深灰色文字，对比度高 */
+    -fx-font-family: 'Microsoft YaHei UI', sans-serif;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-alignment: CENTER;
+}
+
+/* ==================================
+   右上角成功提示 (Top-Right Toast)
+   ================================== */
+.top-right-toast {
+    /* 玻璃拟态背景：白底 + 95% 不透明 */
+    -fx-background-color: rgba(255, 255, 255, 0.95);
+
+    /* 你的主题黄色边框 */
+    -fx-border-color: #ffc107;
+    -fx-border-width: 2px;
+
+    /* 胶囊圆角 */
+    -fx-background-radius: 30px;
+    -fx-border-radius: 30px;
+
+    /* 悬浮阴影 */
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.1), 10, 0, 0, 4);
+
+    /* 内部布局 */
+    -fx-padding: 8px 20px;
+    -fx-alignment: CENTER_LEFT;
+    -fx-spacing: 10px; /* 图标和文字的间距 */
+}

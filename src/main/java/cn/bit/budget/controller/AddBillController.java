@@ -11,6 +11,12 @@ import javafx.stage.Stage;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import com.jfoenix.controls.JFXButton;
+import com.jfoenix.controls.JFXDialog;
+import com.jfoenix.controls.JFXDialogLayout;
+import javafx.scene.layout.VBox;
+import javafx.scene.control.Label;
+import javafx.scene.control.TextField;
 
 public class AddBillController {
 
@@ -66,50 +72,51 @@ public class AddBillController {
     @FXML
     void onAddParentCategory(ActionEvent event) {
         // 1. 调用弹窗获取用户输入
-        String newCategoryName = showInputDialog("添加支出大类", "请输入新的大类名称 (如: 装修):");
+        showModernInputDialog("添加一级分类", "请输入分类名称", (newCategoryName) -> {
+            if (newCategoryName != null && !newCategoryName.trim().isEmpty()) {
+                newCategoryName = newCategoryName.trim(); // 去除首尾空格
 
-        // 2. 校验输入是否有效 (非空且不全是空格)
-        if (newCategoryName != null && !newCategoryName.trim().isEmpty()) {
-            newCategoryName = newCategoryName.trim(); // 去除首尾空格
-
-            // 3. 检查是否已存在 (防止重复添加)
-            // 注意：这里使用的是你代码中定义的 parentCategoryBox
-            if (parentCategoryBox.getItems().contains(newCategoryName)) {
-                showAlert(Alert.AlertType.WARNING, "重复添加", "该分类 '" + newCategoryName + "' 已经存在！");
-                return;
+                if (parentCategoryBox.getItems().contains(newCategoryName)) {
+                    showAlert(Alert.AlertType.WARNING, "重复添加", "该分类 '" + newCategoryName + "' 已经存在！");
+                    return;
+                }
+                CategoryManager.addCustomParentCategory(newCategoryName);
+                parentCategoryBox.getItems().add(newCategoryName);
+                parentCategoryBox.getSelectionModel().select(newCategoryName);
             }
-
-            // 4. 保存到数据源 (持久化)
-            // 调用 CategoryManager 将新分类写入文件，确保持久化存储
-            CategoryManager.addCustomParentCategory(newCategoryName);
-
-            // 5. 更新 UI：添加到下拉框并选中
-            parentCategoryBox.getItems().add(newCategoryName);
-
-            // 选中新添加的分类，这会自动触发 initialize 中定义的 Listener，
-            // 从而自动清空并刷新 childCategoryBox (因为新分类还没子分类，所以子菜单会变空，这是正确的)
-            parentCategoryBox.getSelectionModel().select(newCategoryName);
-
-            System.out.println("成功添加并选中大类: " + newCategoryName);
-        }
+        });
     }
 
     /**
      * 显示一个文本输入对话框
      * @param title   对话框标题
-     * @param content 对话框提示内容
-     * @return 用户输入的字符串，如果用户取消或关闭则返回 null
+     * @param prompt 对话框提示内容
      */
-    private String showInputDialog(String title, String content) {
-        TextInputDialog dialog = new TextInputDialog();
-        dialog.setTitle(title);
-        dialog.setHeaderText(null); // 设置为 null 使界面更紧凑
-        dialog.setContentText(content);
+    private void showModernInputDialog(String title, String prompt, java.util.function.Consumer<String> onConfirm) {
+        JFXDialogLayout content = new JFXDialogLayout();
+        content.setHeading(new Label(title));
 
-        // 获取结果
-        // 使用 Optional 处理返回值，防止空指针
-        java.util.Optional<String> result = dialog.showAndWait();
-        return result.orElse(null);
+        TextField inputField = new TextField();
+        inputField.setPromptText(prompt);
+        inputField.getStyleClass().add("material-field"); // 确保你的 css 链接到了这个 fxml
+
+        VBox body = new VBox(inputField);
+        content.setBody(body);
+
+        JFXDialog dialog = new JFXDialog(rootPane, content, JFXDialog.DialogTransition.CENTER);
+
+        JFXButton btnCancel = new JFXButton("取消");
+        btnCancel.setOnAction(e -> dialog.close());
+
+        JFXButton btnConfirm = new JFXButton("确定");
+        btnConfirm.setStyle("-fx-text-fill: #409eff; -fx-font-weight: bold;");
+        btnConfirm.setOnAction(e -> {
+            onConfirm.accept(inputField.getText());
+            dialog.close();
+        });
+
+        content.setActions(btnCancel, btnConfirm);
+        dialog.show();
     }
 
     /**
@@ -124,31 +131,38 @@ public class AddBillController {
         alert.showAndWait();
     }
 
+
     /**
-     * 响应二级分类 "+" 按钮：添加自定义二级分类
+     * 响应二级分类 "+" 按钮：添加自定义二级分类 (JFoenix 现代化版)
      */
     @FXML
     void onAddChildCategory(ActionEvent event) {
         String currentParent = parentCategoryBox.getValue();
         if (currentParent == null) {
+            // 这里也可以顺便改成 JFoenix 的提示，或者保留 Alert
             showAlert("请先选择一级分类");
             return;
         }
 
-        TextInputDialog dialog = new TextInputDialog();
-        dialog.setTitle("新增二级分类");
-        dialog.setHeaderText("在【" + currentParent + "】下添加二级分类");
-        dialog.setContentText("分类名称:");
+        // 调用现代化弹窗
+        // 技巧：把当前父分类的名字拼接到标题里，让用户清楚自己在给谁加子分类
+        showModernInputDialog(
+                "新增二级分类 (" + currentParent + ")",
+                "请输入分类名称",
+                (name) -> {
+                    // 这里的回调逻辑和之前一样
+                    if (name != null && !name.trim().isEmpty()) {
+                        String cleanName = name.trim();
 
-        dialog.showAndWait().ifPresent(name -> {
-            if (!name.trim().isEmpty()) {
-                // 1. 存入管理器（会自动保存）
-                CategoryManager.addCustomChildCategory(currentParent, name);
-                // 2. 刷新当前下拉框
-                childCategoryBox.getItems().add(name);
-                childCategoryBox.getSelectionModel().select(name);
-            }
-        });
+                        // 1. 存入管理器（会自动保存）
+                        CategoryManager.addCustomChildCategory(currentParent, cleanName);
+
+                        // 2. 刷新当前下拉框
+                        childCategoryBox.getItems().add(cleanName);
+                        childCategoryBox.getSelectionModel().select(cleanName);
+                    }
+                }
+        );
     }
 
     /**
