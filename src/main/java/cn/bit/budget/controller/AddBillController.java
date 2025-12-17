@@ -55,7 +55,10 @@ public class AddBillController {
             if (newVal != null) {
                 // 根据选中的一级分类，刷新二级分类列表
                 childCategoryBox.getItems().clear();
+                // 添加"无"选项作为第一项
+                childCategoryBox.getItems().add("无");
                 childCategoryBox.getItems().addAll(CategoryManager.getChildCategories(newVal));
+                // 默认选中"无"
                 childCategoryBox.getSelectionModel().selectFirst();
             }
         });
@@ -180,6 +183,11 @@ public class AddBillController {
         String subCat = childCategoryBox.getValue();
         if (subCat == null && childCategoryBox.getEditor() != null) {
             subCat = childCategoryBox.getEditor().getText();
+        }
+        
+        // 如果二级分类是"无"，则设为null
+        if ("无".equals(subCat)) {
+            subCat = null;
         }
 
         // 校验

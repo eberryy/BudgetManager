@@ -35,10 +35,8 @@ import java.util.ResourceBundle;
 import java.util.stream.Collectors;
 import javafx.scene.paint.Color;
 
-import com.jfoenix.controls.JFXTextField;
 import javafx.scene.layout.VBox;
 import java.util.function.Consumer;
-import com.jfoenix.controls.JFXSnackbar;
 import javafx.util.Duration;
 
 
@@ -154,10 +152,26 @@ public class HelloController implements Initializable {
                     setGraphic(null);
                     setText(null);
                 } else {
-                    String emoji = CategoryManager.getEmoji(category);
+                    // 获取当前行的Bill对象
+                    Bill currentBill = getTableView().getItems().get(getIndex());
+                    String subCategory = currentBill.getSubCategory();
+                    
+                    // 根据是否有二级分类决定显示内容
+                    String displayText;
+                    String emojiToUse;
+                    
+                    if (subCategory != null && !subCategory.trim().isEmpty()) {
+                        // 有二级分类：显示 "二级分类emoji + 一级分类名称 - 二级分类名称"
+                        emojiToUse = CategoryManager.getEmoji(subCategory);
+                        displayText = category + " - " + subCategory;
+                    } else {
+                        // 无二级分类：显示 "一级分类emoji + 一级分类名称"
+                        emojiToUse = CategoryManager.getEmoji(category);
+                        displayText = category;
+                    }
 
-                    // 1. 获取图片路径 (和之前逻辑一样，算出文件名)
-                    String iconName = getIconName(emoji);
+                    // 1. 获取图片路径
+                    String iconName = getIconName(emojiToUse);
 
                     // 2. 使用 JavaFX 原生 Image 加载 (带缓存，性能极高)
                     try {
@@ -175,12 +189,12 @@ public class HelloController implements Initializable {
                     }
 
                     // 3. 设置文字和图标的排版
-                    setText(category); // 直接显示文字
-                    setGraphic(imageView); // 图标放在左边
-                    setContentDisplay(ContentDisplay.LEFT); // 图标在左，文字在右
-                    setGraphicTextGap(8); // 图标和文字的间距
+                    setText(displayText);
+                    setGraphic(imageView);
+                    setContentDisplay(ContentDisplay.LEFT);
+                    setGraphicTextGap(8);
 
-                    // 4. 给文字加点样式 (可选)
+                    // 4. 给文字加点样式
                     setStyle("-fx-text-fill: #606266; -fx-font-weight: bold; -fx-alignment: CENTER-LEFT;");
                 }
             }

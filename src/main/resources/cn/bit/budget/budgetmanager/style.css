@@ -105,50 +105,109 @@
    ================================== */
 .table-view {
     -fx-background-color: white;
-    -fx-table-cell-border-color: transparent; /* 去掉所有默认边框线 */
+    -fx-table-cell-border-color: transparent;
     -fx-background-radius: 8;
-    /* 给表格整体加卡片式阴影 */
-    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.05), 8, 0, 0, 1);
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.08), 12, 0, 0, 2);
 }
 
-/* 表头样式 */
+/* 现代化表格样式 */
+.modern-table {
+    -fx-background-color: white;
+    -fx-background-radius: 10;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.1), 15, 0, 0, 3);
+    -fx-padding: 0;
+}
+
+/* 表头样式 - 更现代化 */
 .table-view .column-header-background {
-    -fx-background-color: transparent; /* 透明背景 */
-    -fx-border-width: 0 0 2px 0;       /* 仅保留底边线 */
-    -fx-border-color: #f2f2f2;
+    -fx-background-color: linear-gradient(to bottom, #fafafa 0%, #f5f5f5 100%);
+    -fx-border-width: 0 0 2px 0;
+    -fx-border-color: #e0e0e0;
+}
+
+.table-view .column-header {
+    -fx-background-color: transparent;
+    -fx-padding: 12 8 12 8;
 }
 
 .table-view .column-header .label {
-    -fx-text-fill: #909399; /* 浅灰色文字 */
+    -fx-text-fill: #606266;
     -fx-font-weight: bold;
+    -fx-font-size: 13px;
     -fx-alignment: CENTER-LEFT;
 }
 
-/* 单元格行样式 */
+/* 单元格行样式 - 增加行高和间距 */
 .table-row-cell {
     -fx-background-color: white;
-    -fx-border-width: 0 0 1px 0; /* 每行一条极细的分割线 */
-    -fx-border-color: #fcfcfc;
-    -fx-cell-size: 40px;         /* 增加行高，让数据不拥挤 */
+    -fx-border-width: 0 0 1px 0;
+    -fx-border-color: #f0f0f0;
+    -fx-cell-size: 48px;
+    -fx-padding: 8 0 8 0;
 }
 
-/* 鼠标悬停在行上 */
+/* 单元格内容样式 */
+.table-cell {
+    -fx-padding: 8 12 8 12;
+    -fx-alignment: CENTER-LEFT;
+}
+
+/* 鼠标悬停效果 - 更明显 */
 .table-row-cell:filled:hover {
-    -fx-background-color: #f5f7fa;
+    -fx-background-color: #f8f9fa;
+    -fx-cursor: hand;
 }
 
-/* 选中行样式 */
+/* 选中行样式 - 更醒目 */
 .table-view:focused > .virtual-flow > .clipped-container > .sheet > .table-row-cell:filled:selected {
-    -fx-background-color: #ecf5ff; /* 选中时显示极浅的蓝色 */
-}
-.table-view:focused > .virtual-flow > .clipped-container > .sheet > .table-row-cell:filled:selected .text {
-    -fx-fill: #409eff; /* 选中时文字变蓝 */
+    -fx-background-color: #e8f4fd;
+    -fx-border-color: #409eff;
+    -fx-border-width: 0 0 0 3px;
 }
 
-/* 隐藏不必要的滚动条背景 */
-.table-view .scroll-bar:horizontal .track,
-.table-view .scroll-bar:vertical .track{
+.table-view:focused > .virtual-flow > .clipped-container > .sheet > .table-row-cell:filled:selected .text {
+    -fx-fill: #303133;
+}
+
+/* 未聚焦时的选中样式 */
+.table-view > .virtual-flow > .clipped-container > .sheet > .table-row-cell:filled:selected {
+    -fx-background-color: #f0f0f0;
+}
+
+/* 滚动条美化 */
+.table-view .scroll-bar:vertical {
     -fx-background-color: transparent;
+    -fx-padding: 0 4 0 4;
+}
+
+.table-view .scroll-bar:vertical .track {
+    -fx-background-color: #f5f5f5;
+    -fx-background-radius: 4;
+}
+
+.table-view .scroll-bar:vertical .thumb {
+    -fx-background-color: #c0c0c0;
+    -fx-background-radius: 4;
+}
+
+.table-view .scroll-bar:vertical .thumb:hover {
+    -fx-background-color: #a0a0a0;
+}
+
+.table-view .scroll-bar:horizontal .track,
+.table-view .scroll-bar:vertical .track {
+    -fx-background-color: #f5f5f5;
+}
+
+/* 表格列分隔线 */
+.table-view .column-header-background .filler {
+    -fx-background-color: transparent;
+}
+
+/* 空表格提示 */
+.table-view .placeholder .label {
+    -fx-text-fill: #909399;
+    -fx-font-size: 14px;
 }
 
 /* ==================================

@@ -38,10 +38,10 @@
                                 <DatePicker fx:id="endDatePicker" prefWidth="120.0" promptText="结束日期" />
 
                                 <Label text="收支:" />
-                                <ComboBox fx:id="typeFilterBox" prefWidth="80.0" promptText="类型" />
+                                <ComboBox fx:id="typeFilterBox" prefWidth="100.0" promptText="类型" />
 
                                 <Label text="分类:" />
-                                <ComboBox fx:id="filterCategoryBox" prefWidth="100.0" promptText="全部分类" />
+                                <ComboBox fx:id="filterCategoryBox" prefWidth="150.0" promptText="全部分类" />
                                 <JFXButton text="+" onAction="#onAddFilterCategory" styleClass="add-category-button" />
 
                                 <JFXButton buttonType="RAISED" styleClass="action-button" onAction="#onSearchClick" text="查询/刷新" />
@@ -55,12 +55,12 @@
             <center>
                 <SplitPane dividerPositions="0.6" prefHeight="160.0" prefWidth="200.0" BorderPane.alignment="CENTER">
                     <items>
-                        <TableView fx:id="billTable" prefHeight="200.0" prefWidth="200.0">
+                        <TableView fx:id="billTable" prefHeight="200.0" prefWidth="200.0" styleClass="modern-table">
                             <columns>
-                                <TableColumn fx:id="colDate" prefWidth="100.0" text="日期" />
-                                <TableColumn fx:id="colCategory" prefWidth="100.0" text="分类" />
-                                <TableColumn fx:id="colAmount" prefWidth="100.0" text="金额" />
-                                <TableColumn fx:id="colRemark" prefWidth="200.0" text="备注" />
+                                <TableColumn fx:id="colDate" prefWidth="120.0" text="日期" minWidth="100.0" />
+                                <TableColumn fx:id="colCategory" prefWidth="180.0" text="分类" minWidth="150.0" />
+                                <TableColumn fx:id="colAmount" prefWidth="120.0" text="金额" minWidth="100.0" />
+                                <TableColumn fx:id="colRemark" prefWidth="250.0" text="备注" minWidth="150.0" />
                             </columns>
                         </TableView>
 
