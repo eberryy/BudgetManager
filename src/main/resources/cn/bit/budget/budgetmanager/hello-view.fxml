@@ -40,10 +40,15 @@
                                 <Label text="收支:" />
                                 <ComboBox fx:id="typeFilterBox" prefWidth="100.0" promptText="类型" />
 
-                                <Label text="分类:" />
-                                <ComboBox fx:id="filterCategoryBox" prefWidth="150.0" promptText="全部分类" />
+                                <Label text="一级分类:" />
+                                <ComboBox fx:id="filterCategoryBox" prefWidth="120.0" promptText="全部分类" />
                                 <JFXButton text="+" onAction="#onAddFilterCategory" styleClass="add-category-button" />
                                 <JFXButton text="-" onAction="#onDeleteFilterCategory" styleClass="delete-category-button" />
+
+                                <Label text="二级分类:" />
+                                <ComboBox fx:id="filterSubCategoryBox" prefWidth="120.0" promptText="全部" />
+                                <JFXButton text="+" onAction="#onAddFilterSubCategory" styleClass="add-category-button" />
+                                <JFXButton text="-" onAction="#onDeleteFilterSubCategory" styleClass="delete-category-button" />
 
                                 <JFXButton buttonType="RAISED" styleClass="action-button" onAction="#onSearchClick" text="查询/刷新" />
                                 <JFXButton buttonType="RAISED" styleClass="action-button" onAction="#onThisMonthClick" text="本月" />

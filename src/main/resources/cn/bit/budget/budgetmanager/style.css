@@ -345,3 +345,44 @@
     -fx-alignment: CENTER_LEFT;
     -fx-spacing: 10px; /* 图标和文字的间距 */
 }
+
+/* ==================================
+   右上角失败提示 (Top-Right Error Toast)
+   ================================== */
+.top-right-error-toast {
+    /* 玻璃拟态背景：白底 + 95% 不透明 */
+    -fx-background-color: rgba(255, 255, 255, 0.95);
+
+    /* 红色边框 */
+    -fx-border-color: #f56c6c;
+    -fx-border-width: 2px;
+
+    /* 胶囊圆角 */
+    -fx-background-radius: 30px;
+    -fx-border-radius: 30px;
+
+    /* 悬浮阴影 */
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.1), 10, 0, 0, 4);
+
+    /* 内部布局 */
+    -fx-padding: 8px 20px;
+    -fx-alignment: CENTER_LEFT;
+    -fx-spacing: 10px; /* 图标和文字的间距 */
+}
+
+/* ==================================
+   饼图标签 Emoji 修复 (PieChart Labels)
+   ================================== */
+.chart-pie-label {
+    /* 强制指定支持 Emoji 的字体 */
+    -fx-font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
+    /* 稍微调整颜色，避免纯黑太突兀 */
+    -fx-fill: #606266; 
+    -fx-font-size: 11px;
+}
+
+/* 饼图图例字体修复 */
+.chart-legend-item {
+    -fx-font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
+    -fx-font-size: 12px;
+}

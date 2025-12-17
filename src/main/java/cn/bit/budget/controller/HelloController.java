@@ -54,6 +54,8 @@ public class HelloController implements Initializable {
     @FXML
     private ComboBox<String> filterCategoryBox;
     @FXML
+    private ComboBox<String> filterSubCategoryBox;
+    @FXML
     private ComboBox<String> typeFilterBox;
 
     // --- 表格控件 ---
@@ -100,8 +102,17 @@ public class HelloController implements Initializable {
             updateCategoryFilterByType();
         });
 
-        // 初始化分类
+        // 初始化一级分类
         updateCategoryFilterByType();
+
+        // 监听一级分类变化，动态更新二级分类筛选列表
+        filterCategoryBox.valueProperty().addListener((obs, oldVal, newVal) -> {
+            updateSubCategoryFilter();
+        });
+
+        // 初始化二级分类
+        filterSubCategoryBox.getItems().add("全部");
+        filterSubCategoryBox.setValue("全部");
 
         // ============================================================
         // 【🔥🔥 找回这一段：绑定数据列 (核心修复) 🔥🔥】
@@ -237,6 +248,7 @@ public class HelloController implements Initializable {
         LocalDate start = startDatePicker.getValue();
         LocalDate end = endDatePicker.getValue();
         String category = filterCategoryBox.getValue();
+        String subCategory = filterSubCategoryBox.getValue();
         String type = typeFilterBox.getValue(); // 获取类型
 
         // 使用 Stream API 进行多条件过滤
@@ -244,14 +256,24 @@ public class HelloController implements Initializable {
                 // 1. 日期过滤
                 .filter(b -> start == null || !b.getDate().isBefore(start))
                 .filter(b -> end == null || !b.getDate().isAfter(end))
-                // 2. 分类过滤
+                // 2. 一级分类过滤
                 .filter(b -> category == null || "全部分类".equals(category) || category.equals(b.getCategory()))
-                // 3. 【新增】收支类型过滤
+                // 3. 二级分类过滤
+                .filter(b -> subCategory == null || "全部".equals(subCategory) || subCategory.equals(b.getSubCategory()))
+                // 4. 收支类型过滤
                 .filter(b -> type == null || "全部".equals(type) || type.equals(b.getType()))
                 .collect(Collectors.toList());
 
-        // 更新表格和图表
-        updateTableAndChart(filteredList);
+        // 判断是否有二级分类筛选
+        boolean hasSubCategoryFilter = subCategory != null && !"全部".equals(subCategory);
+        
+        if (hasSubCategoryFilter) {
+            // 如果有二级分类筛选，只更新表格，不更新饼图
+            updateTableOnly(filteredList);
+        } else {
+            // 否则更新表格和饼图
+            updateTableAndChart(filteredList);
+        }
     }
 
     /**
@@ -303,10 +325,32 @@ public class HelloController implements Initializable {
     }
 
     /**
-     * 主页面：添加自定义一级分类
+     * 根据选中的一级分类更新二级分类筛选列表
      */
+    private void updateSubCategoryFilter() {
+        String currentSelection = filterSubCategoryBox.getValue();
+        filterSubCategoryBox.getItems().clear();
+        
+        // 始终添加"全部"选项
+        filterSubCategoryBox.getItems().add("全部");
+        
+        String selectedCategory = filterCategoryBox.getValue();
+        if (selectedCategory != null && !"全部分类".equals(selectedCategory)) {
+            // 获取该一级分类下的所有二级分类
+            List<String> subCategories = CategoryManager.getChildCategories(selectedCategory);
+            filterSubCategoryBox.getItems().addAll(subCategories);
+        }
+        
+        // 尝试保持之前的选择，如果不在新列表中则选择"全部"
+        if (currentSelection != null && filterSubCategoryBox.getItems().contains(currentSelection)) {
+            filterSubCategoryBox.setValue(currentSelection);
+        } else {
+            filterSubCategoryBox.setValue("全部");
+        }
+    }
+
     /**
-     * 现代化的新增一级分类
+     * 主页面：添加自定义一级分类
      */
     @FXML
     public void onAddFilterCategory(ActionEvent event) {
@@ -323,25 +367,77 @@ public class HelloController implements Initializable {
     }
 
     /**
-     * 删除自定义分类（一级或二级）
+     * 主页面：添加自定义二级分类
+     */
+    @FXML
+    public void onAddFilterSubCategory(ActionEvent event) {
+        String currentParent = filterCategoryBox.getValue();
+        
+        if (currentParent == null || "全部分类".equals(currentParent)) {
+            showWarningAlert("提示", "请先选择一级分类");
+            return;
+        }
+        
+        showInputDialog("新增二级分类 (" + currentParent + ")", "请输入新的二级分类名称：", (name) -> {
+            if (!name.trim().isEmpty()) {
+                CategoryManager.addCustomChildCategory(currentParent, name);
+                if (!filterSubCategoryBox.getItems().contains(name)) {
+                    filterSubCategoryBox.getItems().add(name);
+                }
+                filterSubCategoryBox.setValue(name);
+                showTopRightSuccess(name, "已添加二级分类：" + name);
+            }
+        });
+    }
+
+    /**
+     * 删除自定义一级分类
      */
     @FXML
     public void onDeleteFilterCategory(ActionEvent event) {
         String selectedCategory = filterCategoryBox.getValue();
         
         if (selectedCategory == null || "全部分类".equals(selectedCategory)) {
-            showWarningAlert("提示", "请先选择要删除的分类");
+            showTopRightError("请先选择要删除的分类");
             return;
         }
 
         // 检查是否为自定义分类
         if (!CategoryManager.isCustomCategory(selectedCategory)) {
-            showWarningAlert("提示", "默认分类不能删除，只能删除自定义分类");
+            showTopRightError("默认分类不能删除，只能删除自定义分类");
             return;
         }
 
         // 显示删除确认对话框
         showDeleteCategoryConfirmDialog(selectedCategory);
+    }
+
+    /**
+     * 删除自定义二级分类
+     */
+    @FXML
+    public void onDeleteFilterSubCategory(ActionEvent event) {
+        String currentParent = filterCategoryBox.getValue();
+        String selectedSubCategory = filterSubCategoryBox.getValue();
+        
+        if (currentParent == null || "全部分类".equals(currentParent)) {
+            showTopRightError("请先选择一级分类");
+            return;
+        }
+        
+        if (selectedSubCategory == null || "全部".equals(selectedSubCategory)) {
+            showTopRightError("请先选择要删除的二级分类");
+            return;
+        }
+
+        // 检查是否为自定义分类
+        if (!CategoryManager.isCustomChildCategory(currentParent, selectedSubCategory)) {
+            showTopRightError("默认二级分类不能删除，只能删除自定义分类");
+            return;
+        }
+
+        // 显示删除确认对话框
+        showDeleteSubCategoryConfirmDialog(currentParent, selectedSubCategory);
     }
 
     /**
@@ -381,7 +477,7 @@ public class HelloController implements Initializable {
     }
 
     /**
-     * 执行删除分类操作
+     * 执行删除一级分类操作
      */
     private void performDeleteCategory(String categoryName) {
         // 删除分类
@@ -403,6 +499,71 @@ public class HelloController implements Initializable {
             String successMsg = String.format(
                 "已删除分类 \"%s\"，同时删除了 %d 条相关账单",
                 categoryName, deletedBillCount
+            );
+            showGeneralSuccess(successMsg);
+        } else {
+            showWarningAlert("删除失败", "无法删除该分类");
+        }
+    }
+
+    /**
+     * 显示删除二级分类确认对话框
+     */
+    private void showDeleteSubCategoryConfirmDialog(String parentCategory, String subCategory) {
+        JFXDialogLayout content = new JFXDialogLayout();
+        content.setHeading(new Text("确认删除"));
+        
+        String message = String.format(
+            "确定要删除 \"%s - %s\" 分类吗？\n\n删除该分类后，相应的账单条目也会一并删除哦！",
+            parentCategory, subCategory
+        );
+        
+        Text bodyText = new Text(message);
+        bodyText.setStyle("-fx-font-size: 14px; -fx-fill: #606266;");
+        content.setBody(bodyText);
+
+        JFXDialog dialog = new JFXDialog(rootStackPane, content, JFXDialog.DialogTransition.CENTER);
+
+        // 返回按钮
+        JFXButton btnCancel = new JFXButton("返回");
+        btnCancel.setStyle("-fx-text-fill: #909399; -fx-font-size: 14px;");
+        btnCancel.setOnAction(e -> dialog.close());
+
+        // 确认按钮
+        JFXButton btnConfirm = new JFXButton("确认删除");
+        btnConfirm.setStyle("-fx-text-fill: #f56c6c; -fx-font-weight: bold; -fx-font-size: 14px;");
+        btnConfirm.setOnAction(e -> {
+            dialog.close();
+            performDeleteSubCategory(parentCategory, subCategory);
+        });
+
+        content.setActions(btnCancel, btnConfirm);
+        dialog.show();
+    }
+
+    /**
+     * 执行删除二级分类操作
+     */
+    private void performDeleteSubCategory(String parentCategory, String subCategory) {
+        // 删除分类
+        boolean deleted = CategoryManager.deleteChildCategory(parentCategory, subCategory);
+        
+        if (deleted) {
+            // 删除相关账单
+            int deletedBillCount = DataStore.deleteBillsBySubCategory(parentCategory, subCategory);
+            
+            // 从下拉框中移除
+            filterSubCategoryBox.getItems().remove(subCategory);
+            filterSubCategoryBox.setValue("全部");
+            
+            // 重新加载数据
+            allBills = DataStore.loadBills();
+            onSearchClick(null);
+            
+            // 显示成功提示
+            String successMsg = String.format(
+                "已删除分类 \"%s - %s\"，同时删除了 %d 条相关账单",
+                parentCategory, subCategory, deletedBillCount
             );
             showGeneralSuccess(successMsg);
         } else {
@@ -444,6 +605,14 @@ public class HelloController implements Initializable {
 
         content.setActions(btnCancel, btnConfirm);
         dialog.show();
+    }
+
+    /**
+     * 只更新表格，不更新饼图（用于二级分类筛选）
+     * @param targetList 经过筛选后的账单列表
+     */
+    private void updateTableOnly(List<Bill> targetList) {
+        billTable.setItems(FXCollections.observableArrayList(targetList));
     }
 
     /**
@@ -501,9 +670,17 @@ public class HelloController implements Initializable {
                 String label;
 
                 if (isViewingSubCategories) {
-                    // 如果是二级分类，也显示emoji
-                    String emoji = CategoryManager.getEmoji(categoryName);
-                    label = emoji + " " + categoryName;
+                    // 如果是二级分类，显示emoji
+                    String emoji;
+                    if ("".equals(categoryName)) {
+                        // 如果是无二级分类的条目，使用当前一级分类的emoji
+                        emoji = CategoryManager.getEmoji(currentFilterCat);
+                        label = emoji + " " + "其他";
+                    } else {
+                        // 否则使用二级分类自己的emoji
+                        emoji = CategoryManager.getEmoji(categoryName);
+                        label = emoji + " " + categoryName;
+                    }
                 } else {
                     // 如果是一级分类，加上 Emoji 前缀
                     String emoji = CategoryManager.getEmoji(categoryName);
@@ -536,11 +713,6 @@ public class HelloController implements Initializable {
         // 步骤 D: 只有当数据发生变化时才重置数据，防止闪烁
         expensePieChart.setData(pieData);
         
-        // 步骤 D2: 应用emoji字体样式到图例标签
-        expensePieChart.setLegendVisible(true);
-        javafx.application.Platform.runLater(() -> {
-            applyEmojiStyleToPieChart();
-        });
 
         // 步骤 E: 设置饼图标题动态变化（根据收支类型和分类）
         String selectedType = typeFilterBox.getValue();
@@ -625,26 +797,59 @@ public class HelloController implements Initializable {
         ObservableList<Bill> selectedItems = billTable.getSelectionModel().getSelectedItems();
         if (selectedItems.isEmpty()) return;
 
-        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
-        alert.setTitle("确认删除");
-        alert.setHeaderText(null);
-        alert.setContentText("确定要删除选中的 " + selectedItems.size() + " 条记录吗？");
+        // 使用JFoenix风格的确认对话框
+        showDeleteConfirmDialog(selectedItems);
+    }
 
-        if (alert.showAndWait().orElse(ButtonType.CANCEL) == ButtonType.OK) {
-            // 1. 从总数据源中移除 (注意：removeAll 需要对象的 equals 方法支持，或使用 ID 匹配)
-            // 由于 Bill 类没有重写 equals，这里建议直接使用 Collection 的 removeAll
-            // 前提是 allBills 里的对象引用和表格里的是同一个 (目前逻辑是同一个，没问题)
-            allBills.removeAll(selectedItems);
+    /**
+     * 显示删除账单确认对话框（JFoenix风格）
+     */
+    private void showDeleteConfirmDialog(ObservableList<Bill> selectedItems) {
+        JFXDialogLayout content = new JFXDialogLayout();
+        content.setHeading(new Text("确认删除"));
+        
+        String message = String.format("确定要删除选中的 %d 条记录吗？", selectedItems.size());
+        Text bodyText = new Text(message);
+        bodyText.setStyle("-fx-font-size: 14px; -fx-fill: #606266;");
+        content.setBody(bodyText);
 
-            // 2. 保存全量数据
-            DataStore.saveBills(allBills);
+        JFXDialog dialog = new JFXDialog(rootStackPane, content, JFXDialog.DialogTransition.CENTER);
 
-            // 3. 刷新视图
-            onSearchClick(null);
+        // 取消按钮
+        JFXButton btnCancel = new JFXButton("取消");
+        btnCancel.setStyle("-fx-text-fill: #909399; -fx-font-size: 14px;");
+        btnCancel.setOnAction(e -> dialog.close());
 
-            // 清除选择
-            billTable.getSelectionModel().clearSelection();
-        }
+        // 确认按钮
+        JFXButton btnConfirm = new JFXButton("确定");
+        btnConfirm.setStyle("-fx-text-fill: #f56c6c; -fx-font-weight: bold; -fx-font-size: 14px;");
+        btnConfirm.setOnAction(e -> {
+            dialog.close();
+            performDeleteBills(selectedItems);
+        });
+
+        content.setActions(btnCancel, btnConfirm);
+        dialog.show();
+    }
+
+    /**
+     * 执行删除账单操作
+     */
+    private void performDeleteBills(ObservableList<Bill> selectedItems) {
+        // 1. 从总数据源中移除
+        allBills.removeAll(selectedItems);
+
+        // 2. 保存全量数据
+        DataStore.saveBills(allBills);
+
+        // 3. 刷新视图
+        onSearchClick(null);
+
+        // 4. 清除选择
+        billTable.getSelectionModel().clearSelection();
+
+        // 5. 显示成功提示
+        showGeneralSuccess(String.format("已删除 %d 条账单记录", selectedItems.size()));
     }
 
     @FXML
@@ -738,6 +943,28 @@ public class HelloController implements Initializable {
         alert.showAndWait();
     }
 
+    /**
+     * 显示JFoenix风格的警告提示框
+     */
+    private void showJFoenixWarning(String title, String content) {
+        JFXDialogLayout dialogContent = new JFXDialogLayout();
+        dialogContent.setHeading(new Text(title));
+        
+        Text bodyText = new Text(content);
+        bodyText.setStyle("-fx-font-size: 14px; -fx-fill: #606266;");
+        dialogContent.setBody(bodyText);
+
+        JFXDialog dialog = new JFXDialog(rootStackPane, dialogContent, JFXDialog.DialogTransition.CENTER);
+
+        // 确定按钮
+        JFXButton btnOk = new JFXButton("确定");
+        btnOk.setStyle("-fx-text-fill: #409eff; -fx-font-weight: bold; -fx-font-size: 14px;");
+        btnOk.setOnAction(e -> dialog.close());
+
+        dialogContent.setActions(btnOk);
+        dialog.show();
+    }
+
 // ==========================================
     //       ✨ 通用右上角胶囊弹窗逻辑 ✨
     // ==========================================
@@ -748,7 +975,7 @@ public class HelloController implements Initializable {
     private void showTopRightSuccess(String categoryName, String message) {
         String emoji = CategoryManager.getEmoji(categoryName);
         // 调用通用方法
-        showUniversalToast(emoji, message);
+        showUniversalToast(emoji, message, false);
     }
 
     /**
@@ -757,18 +984,28 @@ public class HelloController implements Initializable {
     private void showGeneralSuccess(String message) {
         // \uD83C\uDF89 是 🎉 的 Unicode，确保你的 icons 文件夹里有 1f389.png
         // 如果没有这个图，代码里的 try-catch 会自动处理，只显示文字
-        showUniversalToast("\uD83C\uDF89", message);
+        showUniversalToast("\uD83C\uDF89", message, false);
+    }
+
+    /**
+     * 场景 C：显示错误提示（使用 ❌ 图标）
+     */
+    private void showTopRightError(String message) {
+        // \u274C 是 ❌ 的 Unicode
+        showUniversalToast("\u274C", message, true);
     }
 
     /**
      * 核心私有方法：构建并显示弹窗
      * @param emojiStr Emoji 字符 (用于查找文件名)
      * @param message  提示文字
+     * @param isError  是否为错误提示（true=红色边框，false=黄色边框）
      */
-    private void showUniversalToast(String emojiStr, String message) {
+    private void showUniversalToast(String emojiStr, String message, boolean isError) {
         // 1. 创建容器 HBox
         javafx.scene.layout.HBox toast = new javafx.scene.layout.HBox();
-        toast.getStyleClass().add("top-right-toast");
+        // 根据类型选择样式类
+        toast.getStyleClass().add(isError ? "top-right-error-toast" : "top-right-toast");
 
         // 🔥🔥🔥 核心修复：禁止 StackPane 拉伸这个 HBox 🔥🔥🔥
         // USE_PREF_SIZE 告诉父容器：我多大就是多大，别把老子拉宽！

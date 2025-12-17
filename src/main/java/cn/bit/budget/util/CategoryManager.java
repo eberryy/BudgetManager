@@ -155,16 +155,13 @@ public class CategoryManager {
                 "宽带", "\uD83C\uDF10"       // 🌐
         );
 
-        // 收入类 (💰 \uD83D\uDCB0)
-        addCategory("收入", "\uD83D\uDCB0", Arrays.asList("工资", "奖金", "理财", "兼职", "生活费", "其他收入"));
-        addSubEmojis(
-                "工资", "\uD83D\uDCB3",      // 💳
-                "奖金", "\uD83C\uDFC6",      // 🏆
-                "理财", "\uD83D\uDCC8",      // 📈
-                "兼职", "\uD83D\uDEE0\ufe0f",            // ⚒
-                "生活费", "\uD83E\uDD32",    // 🤲
-                "其他收入", "\uD83D\uDC8E"   // 💎
-        );
+        // 收入类 - 将原来的二级分类提升为一级分类
+        addCategory("工资", "\uD83D\uDCB3", new ArrayList<>());      // 💳 信用卡
+        addCategory("奖金", "\uD83C\uDFC6", new ArrayList<>());      // 🏆 奖杯
+        addCategory("理财", "\uD83D\uDCC8", new ArrayList<>());      // 📈 上升趋势
+        addCategory("兼职", "\uD83D\uDEE0", new ArrayList<>());      // 🛠 工具（去掉变体选择符）
+        addCategory("生活费", "\uD83D\uDCB0", new ArrayList<>());    // 💰 钱袋
+        addCategory("其他收入", "\uD83D\uDC8E", new ArrayList<>());  // 💎 宝石
     }
 
     private static void addCategory(String parent, String emoji, List<String> children) {
@@ -220,23 +217,29 @@ public class CategoryManager {
     }
 
     /**
-     * 获取收入类分类（只有"收入"）
+     * 获取收入类分类（工资、奖金、理财、兼职、生活费、其他收入）
      * @return 收入分类集合
      */
     public static Set<String> getIncomeCategories() {
         Set<String> incomeCategories = new LinkedHashSet<>();
-        incomeCategories.add("收入");
+        incomeCategories.add("工资");
+        incomeCategories.add("奖金");
+        incomeCategories.add("理财");
+        incomeCategories.add("兼职");
+        incomeCategories.add("生活费");
+        incomeCategories.add("其他收入");
         return incomeCategories;
     }
 
     /**
-     * 获取支出类分类（除"收入"外的所有分类）
+     * 获取支出类分类（除收入类分类外的所有分类）
      * @return 支出分类集合
      */
     public static Set<String> getExpenseCategories() {
+        Set<String> incomeCategories = getIncomeCategories();
         Set<String> expenseCategories = new LinkedHashSet<>();
         for (String category : CATEGORY_MAP.keySet()) {
-            if (!"收入".equals(category)) {
+            if (!incomeCategories.contains(category)) {
                 expenseCategories.add(category);
             }
         }
@@ -252,7 +255,8 @@ public class CategoryManager {
         // 检查是否在默认分类中
         Set<String> defaultCategories = Set.of(
             "餐饮", "购物", "交通", "住宿", "日常", "学习", "人情", 
-            "娱乐", "美妆", "旅游", "医疗", "会员", "通讯", "收入"
+            "娱乐", "美妆", "旅游", "医疗", "会员", "通讯",
+            "工资", "奖金", "理财", "兼职", "生活费", "其他收入"
         );
         return !defaultCategories.contains(categoryName);
     }
@@ -264,34 +268,42 @@ public class CategoryManager {
      * @return true 如果是用户自定义的二级分类
      */
     public static boolean isCustomChildCategory(String parentCategory, String childCategory) {
-        // 从文件加载的分类映射中查找
-        File file = new File(CUSTOM_CATEGORY_FILE);
-        if (!file.exists()) {
+        // 首先检查是否为默认二级分类
+        if (isDefaultChildCategory(parentCategory, childCategory)) {
             return false;
         }
+        
+        // 如果不是默认分类，则为自定义分类
+        return true;
+    }
 
-        try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                if (line.trim().isEmpty()) continue;
-                String[] parts = line.split(",", 2);
-                if (parts.length < 2) continue;
-                
-                String parent = parts[0].trim();
-                if (parent.equals(parentCategory)) {
-                    String[] children = parts[1].split(";");
-                    for (String child : children) {
-                        if (child.trim().equals(childCategory)) {
-                            return true;
-                        }
-                    }
-                }
-            }
-        } catch (IOException e) {
-            System.err.println("检查自定义分类失败：" + e.getMessage());
-        }
-        return false;
+    /**
+     * 判断二级分类是否为默认分类
+     * @param parentCategory 一级分类
+     * @param childCategory 二级分类
+     * @return true 如果是默认的二级分类
+     */
+    private static boolean isDefaultChildCategory(String parentCategory, String childCategory) {
+        // 定义所有默认的二级分类
+        Map<String, Set<String>> defaultSubCategories = new HashMap<>();
+        
+        defaultSubCategories.put("餐饮", Set.of("三餐", "咖啡", "奶茶", "食材", "柴米油盐", "零食", "水果"));
+        defaultSubCategories.put("购物", Set.of("鞋服", "日用", "数码", "包包", "厨房用品", "电器"));
+        defaultSubCategories.put("交通", Set.of("公交地铁", "打车", "共享单车", "私家车", "火车", "飞机票", "加油", "大巴"));
+        defaultSubCategories.put("住宿", Set.of("房租", "物业水电", "维修"));
+        defaultSubCategories.put("日常", Set.of("快递", "理发"));
+        defaultSubCategories.put("学习", Set.of("培训", "书籍", "文具耗材", "网课", "考试报名"));
+        defaultSubCategories.put("人情", Set.of("送礼", "发红包", "请客", "亲密付", "孝心"));
+        defaultSubCategories.put("娱乐", Set.of("电影", "游戏", "健身", "休闲", "约会", "演唱会"));
+        defaultSubCategories.put("美妆", Set.of("护肤品", "化妆品", "美容美发", "美甲美睫", "洗面奶"));
+        defaultSubCategories.put("旅游", Set.of("酒店", "景区门票", "伴手礼", "团费"));
+        defaultSubCategories.put("医疗", Set.of("就诊", "药品", "住院", "体检", "治疗", "保健"));
+        defaultSubCategories.put("会员", Set.of("视频会员", "音乐会员", "办公软件", "社交会员", "书籍会员"));
+        defaultSubCategories.put("通讯", Set.of("话费", "宽带"));
+        
+        // 检查是否在默认分类中
+        Set<String> subCats = defaultSubCategories.get(parentCategory);
+        return subCats != null && subCats.contains(childCategory);
     }
 
     /**

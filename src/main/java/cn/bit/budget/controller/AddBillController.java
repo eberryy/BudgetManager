@@ -15,8 +15,6 @@ import com.jfoenix.controls.JFXButton;
 import com.jfoenix.controls.JFXDialog;
 import com.jfoenix.controls.JFXDialogLayout;
 import javafx.scene.layout.VBox;
-import javafx.scene.control.Label;
-import javafx.scene.control.TextField;
 
 public class AddBillController {
 
@@ -190,6 +188,7 @@ public class AddBillController {
                 }
         );
     }
+
 
     /**
      * 点击“保存”
