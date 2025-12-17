@@ -11,7 +11,7 @@
 .emoji-font
 {
     /* 优先使用 Windows 的彩色 Emoji 字体，其次是 Mac 的，最后是 Linux 的 */
-    -fx-font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", "Segoe UI"
+    -fx-font-family: "Noto Color Emoji", "Segoe UI Emoji", "Apple Color Emoji", "Segoe UI"
     , sans-serif;
 }
 
@@ -80,6 +80,34 @@
 
 .add-category-button:pressed {
     -fx-background-color: #ffa000; /* 按下时更深 */
+    -fx-scale-x: 0.95;
+    -fx-scale-y: 0.95;
+}
+
+/* --- 类型 D: 圆形删除按钮 (红色) --- */
+/* 对应 FXML 中的 styleClass="delete-category-button" */
+.delete-category-button {
+    -fx-background-color: #f56c6c; /* 红色背景 */
+    -fx-text-fill: white;           /* 白色文字 */
+    -fx-font-size: 18px;            /* 减号字体大小 */
+    -fx-font-weight: bold;
+    -fx-background-radius: 50%;     /* 圆形 */
+    -fx-border-radius: 50%;         /* 圆形边框 */
+    -fx-min-width: 28px;            /* 固定宽度 */
+    -fx-max-width: 28px;
+    -fx-min-height: 28px;           /* 固定高度 */
+    -fx-max-height: 28px;
+    -fx-padding: 0;                 /* 去掉内边距，让减号居中 */
+    -fx-cursor: hand;
+}
+
+.delete-category-button:hover {
+    -fx-background-color: #f78989; /* 悬停时颜色稍浅 */
+    -fx-effect: dropshadow(three-pass-box, rgba(245,108,108,0.5), 8, 0, 0, 2);
+}
+
+.delete-category-button:pressed {
+    -fx-background-color: #dd6161; /* 按下时更深 */
     -fx-scale-x: 0.95;
     -fx-scale-y: 0.95;
 }

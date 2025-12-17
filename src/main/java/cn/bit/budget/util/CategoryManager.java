@@ -87,8 +87,8 @@ public class CategoryManager {
                 "考试报名", "\uD83D\uDCDD"    // 📝
         );
 
-        // 7. 人情 (🧧 \uD83E\uDDE7)
-        addCategory("人情", "\uD83E\uDDE7", Arrays.asList("送礼", "发红包", "请客", "亲密付", "孝心"));
+        // 7. 人情 (💖 \uD83D\uDC96)
+        addCategory("人情", "\uD83D\uDC96", Arrays.asList("送礼", "发红包", "请客", "亲密付", "孝心"));
         addSubEmojis(
                 "送礼", "\uD83C\uDF81",      // 🎁
                 "发红包", "\uD83E\uDDE7",    // 🧧
@@ -217,6 +217,122 @@ public class CategoryManager {
 
     public static String getAllCategoriesString() {
         return CATEGORY_MAP.keySet().toString();
+    }
+
+    /**
+     * 获取收入类分类（只有"收入"）
+     * @return 收入分类集合
+     */
+    public static Set<String> getIncomeCategories() {
+        Set<String> incomeCategories = new LinkedHashSet<>();
+        incomeCategories.add("收入");
+        return incomeCategories;
+    }
+
+    /**
+     * 获取支出类分类（除"收入"外的所有分类）
+     * @return 支出分类集合
+     */
+    public static Set<String> getExpenseCategories() {
+        Set<String> expenseCategories = new LinkedHashSet<>();
+        for (String category : CATEGORY_MAP.keySet()) {
+            if (!"收入".equals(category)) {
+                expenseCategories.add(category);
+            }
+        }
+        return expenseCategories;
+    }
+
+    /**
+     * 判断是否为自定义分类（非默认分类）
+     * @param categoryName 分类名称
+     * @return true 如果是用户自定义的分类
+     */
+    public static boolean isCustomCategory(String categoryName) {
+        // 检查是否在默认分类中
+        Set<String> defaultCategories = Set.of(
+            "餐饮", "购物", "交通", "住宿", "日常", "学习", "人情", 
+            "娱乐", "美妆", "旅游", "医疗", "会员", "通讯", "收入"
+        );
+        return !defaultCategories.contains(categoryName);
+    }
+
+    /**
+     * 判断二级分类是否为自定义（非默认）
+     * @param parentCategory 一级分类
+     * @param childCategory 二级分类
+     * @return true 如果是用户自定义的二级分类
+     */
+    public static boolean isCustomChildCategory(String parentCategory, String childCategory) {
+        // 从文件加载的分类映射中查找
+        File file = new File(CUSTOM_CATEGORY_FILE);
+        if (!file.exists()) {
+            return false;
+        }
+
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (line.trim().isEmpty()) continue;
+                String[] parts = line.split(",", 2);
+                if (parts.length < 2) continue;
+                
+                String parent = parts[0].trim();
+                if (parent.equals(parentCategory)) {
+                    String[] children = parts[1].split(";");
+                    for (String child : children) {
+                        if (child.trim().equals(childCategory)) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        } catch (IOException e) {
+            System.err.println("检查自定义分类失败：" + e.getMessage());
+        }
+        return false;
+    }
+
+    /**
+     * 删除一级分类（仅限自定义分类）
+     * @param parentName 要删除的一级分类名称
+     * @return true 如果删除成功
+     */
+    public static boolean deleteParentCategory(String parentName) {
+        if (!isCustomCategory(parentName)) {
+            System.err.println("无法删除默认分类：" + parentName);
+            return false;
+        }
+        
+        if (CATEGORY_MAP.containsKey(parentName)) {
+            CATEGORY_MAP.remove(parentName);
+            EMOJI_MAP.remove(parentName);
+            saveCustomCategories();
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * 删除二级分类（仅限自定义分类）
+     * @param parentName 一级分类名称
+     * @param childName 要删除的二级分类名称
+     * @return true 如果删除成功
+     */
+    public static boolean deleteChildCategory(String parentName, String childName) {
+        if (!CATEGORY_MAP.containsKey(parentName)) {
+            return false;
+        }
+        
+        List<String> children = CATEGORY_MAP.get(parentName);
+        if (children.contains(childName)) {
+            children.remove(childName);
+            EMOJI_MAP.remove(childName);
+            saveCustomCategories();
+            return true;
+        }
+        return false;
     }
 
     /**

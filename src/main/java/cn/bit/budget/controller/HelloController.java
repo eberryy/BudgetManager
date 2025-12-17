@@ -95,10 +95,13 @@ public class HelloController implements Initializable {
         typeFilterBox.getItems().addAll("全部", "支出", "收入");
         typeFilterBox.setValue("全部");
 
+        // 监听收支类型变化，动态更新分类筛选列表
+        typeFilterBox.valueProperty().addListener((obs, oldVal, newVal) -> {
+            updateCategoryFilterByType();
+        });
+
         // 初始化分类
-        filterCategoryBox.getItems().add("全部分类");
-        filterCategoryBox.getItems().addAll(CategoryManager.getParentCategories());
-        filterCategoryBox.setValue("全部分类");
+        updateCategoryFilterByType();
 
         // ============================================================
         // 【🔥🔥 找回这一段：绑定数据列 (核心修复) 🔥🔥】
@@ -270,6 +273,36 @@ public class HelloController implements Initializable {
     }
 
     /**
+     * 根据选中的收支类型更新分类筛选列表
+     */
+    private void updateCategoryFilterByType() {
+        String currentSelection = filterCategoryBox.getValue();
+        filterCategoryBox.getItems().clear();
+        
+        // 始终添加"全部分类"选项
+        filterCategoryBox.getItems().add("全部分类");
+        
+        String selectedType = typeFilterBox.getValue();
+        if ("收入".equals(selectedType)) {
+            // 收入类型：只显示"收入"分类
+            filterCategoryBox.getItems().addAll(CategoryManager.getIncomeCategories());
+        } else if ("支出".equals(selectedType)) {
+            // 支出类型：显示除"收入"外的所有分类
+            filterCategoryBox.getItems().addAll(CategoryManager.getExpenseCategories());
+        } else {
+            // 全部类型：显示所有分类
+            filterCategoryBox.getItems().addAll(CategoryManager.getParentCategories());
+        }
+        
+        // 尝试保持之前的选择，如果不在新列表中则选择"全部分类"
+        if (currentSelection != null && filterCategoryBox.getItems().contains(currentSelection)) {
+            filterCategoryBox.setValue(currentSelection);
+        } else {
+            filterCategoryBox.setValue("全部分类");
+        }
+    }
+
+    /**
      * 主页面：添加自定义一级分类
      */
     /**
@@ -287,6 +320,94 @@ public class HelloController implements Initializable {
                 showTopRightSuccess(name, "已添加一级分类：" + name);
             }
         });
+    }
+
+    /**
+     * 删除自定义分类（一级或二级）
+     */
+    @FXML
+    public void onDeleteFilterCategory(ActionEvent event) {
+        String selectedCategory = filterCategoryBox.getValue();
+        
+        if (selectedCategory == null || "全部分类".equals(selectedCategory)) {
+            showWarningAlert("提示", "请先选择要删除的分类");
+            return;
+        }
+
+        // 检查是否为自定义分类
+        if (!CategoryManager.isCustomCategory(selectedCategory)) {
+            showWarningAlert("提示", "默认分类不能删除，只能删除自定义分类");
+            return;
+        }
+
+        // 显示删除确认对话框
+        showDeleteCategoryConfirmDialog(selectedCategory);
+    }
+
+    /**
+     * 显示删除分类确认对话框
+     */
+    private void showDeleteCategoryConfirmDialog(String categoryName) {
+        JFXDialogLayout content = new JFXDialogLayout();
+        content.setHeading(new Text("确认删除"));
+        
+        // 构建提示信息
+        String message = String.format(
+            "确定要删除 \"%s\" 分类吗？\n\n删除该分类后，相应的账单条目也会一并删除哦！",
+            categoryName
+        );
+        
+        Text bodyText = new Text(message);
+        bodyText.setStyle("-fx-font-size: 14px; -fx-fill: #606266;");
+        content.setBody(bodyText);
+
+        JFXDialog dialog = new JFXDialog(rootStackPane, content, JFXDialog.DialogTransition.CENTER);
+
+        // 返回按钮
+        JFXButton btnCancel = new JFXButton("返回");
+        btnCancel.setStyle("-fx-text-fill: #909399; -fx-font-size: 14px;");
+        btnCancel.setOnAction(e -> dialog.close());
+
+        // 确认按钮
+        JFXButton btnConfirm = new JFXButton("确认删除");
+        btnConfirm.setStyle("-fx-text-fill: #f56c6c; -fx-font-weight: bold; -fx-font-size: 14px;");
+        btnConfirm.setOnAction(e -> {
+            dialog.close();
+            performDeleteCategory(categoryName);
+        });
+
+        content.setActions(btnCancel, btnConfirm);
+        dialog.show();
+    }
+
+    /**
+     * 执行删除分类操作
+     */
+    private void performDeleteCategory(String categoryName) {
+        // 删除分类
+        boolean deleted = CategoryManager.deleteParentCategory(categoryName);
+        
+        if (deleted) {
+            // 删除相关账单
+            int deletedBillCount = DataStore.deleteBillsByCategory(categoryName);
+            
+            // 从下拉框中移除
+            filterCategoryBox.getItems().remove(categoryName);
+            filterCategoryBox.setValue("全部分类");
+            
+            // 重新加载数据
+            allBills = DataStore.loadBills();
+            onSearchClick(null);
+            
+            // 显示成功提示
+            String successMsg = String.format(
+                "已删除分类 \"%s\"，同时删除了 %d 条相关账单",
+                categoryName, deletedBillCount
+            );
+            showGeneralSuccess(successMsg);
+        } else {
+            showWarningAlert("删除失败", "无法删除该分类");
+        }
     }
 
     /**
@@ -421,11 +542,14 @@ public class HelloController implements Initializable {
             applyEmojiStyleToPieChart();
         });
 
-        // 步骤 E: (可选) 设置饼图标题动态变化
+        // 步骤 E: 设置饼图标题动态变化（根据收支类型和分类）
+        String selectedType = typeFilterBox.getValue();
+        String typeLabel = "收入".equals(selectedType) ? "收入" : "支出";
+        
         if (isViewingSubCategories) {
-            expensePieChart.setTitle(currentFilterCat + " - 支出明细");
+            expensePieChart.setTitle(currentFilterCat + " - " + typeLabel + "明细");
         } else {
-            expensePieChart.setTitle("总支出构成");
+            expensePieChart.setTitle("总" + typeLabel + "构成");
         }
     }
 

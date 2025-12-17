@@ -46,11 +46,16 @@ public class AddBillController {
         // 1. 初始化日期为今天
         datePicker.setValue(LocalDate.now());
 
-        // 2. 初始化一级分类（不可编辑）
-        parentCategoryBox.getItems().addAll(CategoryManager.getParentCategories());
-        parentCategoryBox.setEditable(false); // 改为不可编辑
+        // 2. 监听收支类型变化，动态更新一级分类列表
+        typeGroup.selectedToggleProperty().addListener((obs, oldToggle, newToggle) -> {
+            updateParentCategoryByType();
+        });
 
-        // 3. 监听一级分类选择事件 (级联逻辑)
+        // 3. 初始化一级分类（不可编辑）
+        parentCategoryBox.setEditable(false);
+        updateParentCategoryByType(); // 根据默认选中的类型初始化分类
+
+        // 4. 监听一级分类选择事件 (级联逻辑)
         parentCategoryBox.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
             if (newVal != null) {
                 // 根据选中的一级分类，刷新二级分类列表
@@ -62,9 +67,27 @@ public class AddBillController {
                 childCategoryBox.getSelectionModel().selectFirst();
             }
         });
+    }
 
-        // 默认选中第一个
-        if (!parentCategoryBox.getItems().isEmpty()) {
+    /**
+     * 根据选中的收支类型更新一级分类列表
+     */
+    private void updateParentCategoryByType() {
+        String currentSelection = parentCategoryBox.getValue();
+        parentCategoryBox.getItems().clear();
+        
+        if (rbIncome.isSelected()) {
+            // 收入类型：只显示"收入"分类
+            parentCategoryBox.getItems().addAll(CategoryManager.getIncomeCategories());
+        } else {
+            // 支出类型：显示除"收入"外的所有分类
+            parentCategoryBox.getItems().addAll(CategoryManager.getExpenseCategories());
+        }
+        
+        // 尝试保持之前的选择，如果不在新列表中则选择第一个
+        if (currentSelection != null && parentCategoryBox.getItems().contains(currentSelection)) {
+            parentCategoryBox.setValue(currentSelection);
+        } else if (!parentCategoryBox.getItems().isEmpty()) {
             parentCategoryBox.getSelectionModel().select(0);
         }
     }

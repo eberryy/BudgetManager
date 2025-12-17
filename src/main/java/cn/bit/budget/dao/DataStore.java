@@ -126,4 +126,34 @@ public class DataStore {
     private static String unescapeCsv(String value) {
         return (value == null || value.isEmpty()) ? "" : value.replace("&#44;", ",");
     }
+
+    /**
+     * 删除指定一级分类的所有账单
+     * @param category 要删除的一级分类名称
+     * @return 删除的账单数量
+     */
+    public static int deleteBillsByCategory(String category) {
+        List<Bill> bills = loadBills();
+        int originalSize = bills.size();
+        bills.removeIf(bill -> category.equals(bill.getCategory()));
+        saveBills(bills);
+        return originalSize - bills.size();
+    }
+
+    /**
+     * 删除指定二级分类的所有账单
+     * @param parentCategory 一级分类名称
+     * @param subCategory 要删除的二级分类名称
+     * @return 删除的账单数量
+     */
+    public static int deleteBillsBySubCategory(String parentCategory, String subCategory) {
+        List<Bill> bills = loadBills();
+        int originalSize = bills.size();
+        bills.removeIf(bill -> 
+            parentCategory.equals(bill.getCategory()) && 
+            subCategory.equals(bill.getSubCategory())
+        );
+        saveBills(bills);
+        return originalSize - bills.size();
+    }
 }
