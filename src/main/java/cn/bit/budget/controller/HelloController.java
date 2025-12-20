@@ -229,6 +229,9 @@ public class HelloController implements Initializable {
         // 3. 开启表格多选
         billTable.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
         setupContextMenu();
+        
+        // 🔥 新增：设置双击编辑功能
+        setupDoubleClickEdit();
 
         // 4. 加载数据
         allBills = DataStore.loadBills();
@@ -463,20 +466,77 @@ public class HelloController implements Initializable {
     }
 
     /**
-     * 主页面：添加自定义一级分类
+     * 主页面：添加自定义一级分类（带收支类型选择）
      */
     @FXML
     public void onAddFilterCategory(ActionEvent event) {
-        showInputDialog("新增一级分类", "请输入新的分类名称：", (name) -> {
+        // 创建自定义对话框布局
+        JFXDialogLayout content = new JFXDialogLayout();
+        content.setHeading(new Label("新增一级分类"));
+
+        // 创建输入框
+        TextField inputField = new TextField();
+        inputField.setPromptText("请输入新的分类名称");
+        inputField.getStyleClass().add("material-field");
+        inputField.setPrefWidth(300);
+
+        // 🔥 新增：收支类型选择开关
+        Label typeLabel = new Label("收支类型：");
+        typeLabel.setStyle("-fx-font-size: 14px; -fx-text-fill: #606266;");
+        
+        JFXToggleButton typeToggle = new JFXToggleButton();
+        typeToggle.setText("支出");
+        typeToggle.setStyle("-fx-font-size: 14px;");
+        
+        // 监听开关状态变化
+        typeToggle.selectedProperty().addListener((obs, oldVal, newVal) -> {
+            typeToggle.setText(newVal ? "收入" : "支出");
+        });
+        
+        HBox typeBox = new HBox(10, typeLabel, typeToggle);
+        typeBox.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+        typeBox.setStyle("-fx-padding: 10 0 0 0;");
+
+        VBox body = new VBox(10, inputField, typeBox);
+        content.setBody(body);
+
+        JFXDialog dialog = new JFXDialog(rootStackPane, content, JFXDialog.DialogTransition.CENTER);
+
+        JFXButton btnCancel = new JFXButton("取消");
+        btnCancel.setStyle("-fx-text-fill: #909399; -fx-font-size: 14px;");
+        btnCancel.setOnAction(e -> dialog.close());
+
+        JFXButton btnConfirm = new JFXButton("确定");
+        btnConfirm.setStyle("-fx-text-fill: #409eff; -fx-font-weight: bold; -fx-font-size: 14px;");
+        btnConfirm.setOnAction(e -> {
+            String name = inputField.getText();
             if (!name.trim().isEmpty()) {
-                CategoryManager.addCustomParentCategory(name);
-                if (!filterCategoryBox.getItems().contains(name)) {
-                    filterCategoryBox.getItems().add(name);
+                // 🔥 根据开关状态确定类型
+                String categoryType = typeToggle.isSelected() ? "收入" : "支出";
+                
+                // 添加分类并指定类型
+                CategoryManager.addCustomParentCategory(name, categoryType);
+                
+                // 刷新筛选框（会根据当前选择的收支类型自动过滤）
+                updateCategoryFilterByType();
+                
+                // 如果新分类的类型与当前筛选的类型匹配，则选中它
+                String currentFilterType = typeFilterBox.getValue();
+                boolean shouldShow = "全部".equals(currentFilterType) || 
+                                   ("收入".equals(currentFilterType) && "收入".equals(categoryType)) ||
+                                   ("支出".equals(currentFilterType) && "支出".equals(categoryType));
+                
+                if (shouldShow && filterCategoryBox.getItems().contains(name)) {
+                    filterCategoryBox.setValue(name);
                 }
-                filterCategoryBox.setValue(name);
-                showTopRightSuccess(name, "已添加一级分类：" + name);
+                
+                showTopRightSuccess(name, "已添加一级分类：" + name + " (" + categoryType + ")");
+                dialog.close();
             }
         });
+
+        content.setActions(btnCancel, btnConfirm);
+        dialog.show();
     }
 
     /**
@@ -600,8 +660,8 @@ public class HelloController implements Initializable {
             // 删除相关账单
             int deletedBillCount = DataStore.deleteBillsByCategory(categoryName);
 
-            // 从下拉框中移除
-            filterCategoryBox.getItems().remove(categoryName);
+            // 🔥 修复：重新加载分类列表，而不是手动移除
+            updateCategoryFilterByType();
             filterCategoryBox.setValue("全部分类");
 
             // 重新加载数据
@@ -665,8 +725,8 @@ public class HelloController implements Initializable {
             // 删除相关账单
             int deletedBillCount = DataStore.deleteBillsBySubCategory(parentCategory, subCategory);
 
-            // 从下拉框中移除
-            filterSubCategoryBox.getItems().remove(subCategory);
+            // 🔥 修复：重新加载二级分类列表，而不是手动移除
+            updateSubCategoryFilter();
             filterSubCategoryBox.setValue("全部");
 
             // 重新加载数据
@@ -875,6 +935,71 @@ public class HelloController implements Initializable {
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+    
+    /**
+     * 🔥 新增：编辑账单
+     * @param billToEdit 要编辑的账单
+     */
+    private void editBill(Bill billToEdit) {
+        try {
+            FXMLLoader loader = new FXMLLoader(HelloController.class.getResource("/cn/bit/budget/budgetmanager/add-bill-view.fxml"));
+            Parent root = loader.load();
+            AddBillController editController = loader.getController();
+            
+            // 设置为编辑模式并填充数据
+            editController.setEditMode(billToEdit);
+
+            Stage stage = new Stage();
+            stage.setTitle("编辑账单");
+            stage.setScene(new Scene(root));
+            stage.initModality(Modality.APPLICATION_MODAL);
+            stage.showAndWait();
+
+            Bill updatedBill = editController.getBill();
+            if (updatedBill != null) {
+                // 1. 在总数据源中找到并替换
+                for (int i = 0; i < allBills.size(); i++) {
+                    if (allBills.get(i).getId().equals(billToEdit.getId())) {
+                        allBills.set(i, updatedBill);
+                        break;
+                    }
+                }
+
+                // 2. 重新排序
+                allBills.sort((b1, b2) -> {
+                    if (b2.getDate().equals(b1.getDate())) {
+                        return b2.getCreateTime().compareTo(b1.getCreateTime());
+                    }
+                    return b2.getDate().compareTo(b1.getDate());
+                });
+                
+                // 3. 保存全量数据
+                DataStore.saveBills(allBills);
+                
+                // 4. 刷新视图
+                onSearchClick(null);
+                
+                showGeneralSuccess("账单已更新");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            showTopRightError("编辑账单失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 🔥 新增：设置表格双击编辑功能
+     */
+    private void setupDoubleClickEdit() {
+        billTable.setOnMouseClicked(event -> {
+            if (event.getClickCount() == 2) {
+                Bill selectedBill = billTable.getSelectionModel().getSelectedItem();
+                if (selectedBill != null) {
+                    editBill(selectedBill);
+                }
+            }
+        });
     }
 
     @FXML
@@ -1223,7 +1348,9 @@ public class HelloController implements Initializable {
                 if (item.approvedProperty().get()) {
                     // 情况 A：批准创建 -> 注册并应用
                     finalParent = item.parentCategoryProperty().get();
-                    CategoryManager.addCustomParentCategory(finalParent);
+                    // 🔥 核心修改：创建新分类时，使用账单的收支类型
+                    String billType = item.getBillType(); // "收入" 或 "支出"
+                    CategoryManager.addCustomParentCategory(finalParent, billType);
                 } else if (isExisting) {
                     // 情况 B：没准新建，但用户改选了已有的 -> 尊重用户，应用已有的
                     finalParent = item.parentCategoryProperty().get();

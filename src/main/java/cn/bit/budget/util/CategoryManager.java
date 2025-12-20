@@ -12,6 +12,9 @@ public class CategoryManager {
     // 存储分类名称 -> Emoji 的映射
     private static final Map<String, String> EMOJI_MAP = new HashMap<>();
 
+    // 🔥 新增：存储一级分类 -> 收支类型的映射 ("收入" 或 "支出")
+    private static final Map<String, String> CATEGORY_TYPE_MAP = new HashMap<>();
+
     // 自定义分类存储文件
     private static final String CUSTOM_CATEGORY_FILE = "custom_categories.csv";
 
@@ -167,11 +170,21 @@ public class CategoryManager {
         addCategory("兼职", "\uD83D\uDEE0", new ArrayList<>());      // 🛠 工具（去掉变体选择符）
         addCategory("生活费", "\uD83D\uDCB0", new ArrayList<>());    // 💰 钱袋
         addCategory("其他收入", "\uD83D\uDC8E", new ArrayList<>());  // 💎 宝石
+        
+        // 🔥 标记收入类分类
+        CATEGORY_TYPE_MAP.put("工资", "收入");
+        CATEGORY_TYPE_MAP.put("奖金", "收入");
+        CATEGORY_TYPE_MAP.put("理财", "收入");
+        CATEGORY_TYPE_MAP.put("兼职", "收入");
+        CATEGORY_TYPE_MAP.put("生活费", "收入");
+        CATEGORY_TYPE_MAP.put("其他收入", "收入");
     }
 
     private static void addCategory(String parent, String emoji, List<String> children) {
         CATEGORY_MAP.put(parent, new ArrayList<>(children));
         EMOJI_MAP.put(parent, emoji);
+        // 默认为支出类型（收入类型会在后面单独设置）
+        CATEGORY_TYPE_MAP.put(parent, "支出");
     }
 
     private static void addSubEmojis(String... args) {
@@ -196,17 +209,23 @@ public class CategoryManager {
         return EMOJI_MAP.getOrDefault(categoryName, "\uD83C\uDFF7");
     }
 
-    // 动态添加一级分类
-// 动态添加一级分类
-    public static void addCustomParentCategory(String parentName) {
+    // 动态添加一级分类（带收支类型）
+    public static void addCustomParentCategory(String parentName, String type) {
         if (!CATEGORY_MAP.containsKey(parentName)) {
             CATEGORY_MAP.put(parentName, new ArrayList<>());
             // 🔥 核心修改：只有原来没图标时才设为默认，防止覆盖
             if (!EMOJI_MAP.containsKey(parentName)) {
                 EMOJI_MAP.put(parentName, "\uD83C\uDFF7");
             }
+            // 🔥 新增：设置分类类型
+            CATEGORY_TYPE_MAP.put(parentName, type);
             saveCustomCategories();
         }
+    }
+    
+    // 兼容旧版本的方法（默认为支出）
+    public static void addCustomParentCategory(String parentName) {
+        addCustomParentCategory(parentName, "支出");
     }
 
     // 添加自定义二级分类
@@ -229,33 +248,40 @@ public class CategoryManager {
     }
 
     /**
-     * 获取收入类分类（工资、奖金、理财、兼职、生活费、其他收入）
+     * 获取收入类分类（根据 CATEGORY_TYPE_MAP 动态判断）
      * @return 收入分类集合
      */
     public static Set<String> getIncomeCategories() {
         Set<String> incomeCategories = new LinkedHashSet<>();
-        incomeCategories.add("工资");
-        incomeCategories.add("奖金");
-        incomeCategories.add("理财");
-        incomeCategories.add("兼职");
-        incomeCategories.add("生活费");
-        incomeCategories.add("其他收入");
+        for (Map.Entry<String, String> entry : CATEGORY_TYPE_MAP.entrySet()) {
+            if ("收入".equals(entry.getValue())) {
+                incomeCategories.add(entry.getKey());
+            }
+        }
         return incomeCategories;
     }
 
     /**
-     * 获取支出类分类（除收入类分类外的所有分类）
+     * 获取支出类分类（根据 CATEGORY_TYPE_MAP 动态判断）
      * @return 支出分类集合
      */
     public static Set<String> getExpenseCategories() {
-        Set<String> incomeCategories = getIncomeCategories();
         Set<String> expenseCategories = new LinkedHashSet<>();
-        for (String category : CATEGORY_MAP.keySet()) {
-            if (!incomeCategories.contains(category)) {
-                expenseCategories.add(category);
+        for (Map.Entry<String, String> entry : CATEGORY_TYPE_MAP.entrySet()) {
+            if ("支出".equals(entry.getValue())) {
+                expenseCategories.add(entry.getKey());
             }
         }
         return expenseCategories;
+    }
+    
+    /**
+     * 获取分类的收支类型
+     * @param categoryName 分类名称
+     * @return "收入" 或 "支出"，如果不存在则返回 "支出"
+     */
+    public static String getCategoryType(String categoryName) {
+        return CATEGORY_TYPE_MAP.getOrDefault(categoryName, "支出");
     }
 
     /**
@@ -332,6 +358,7 @@ public class CategoryManager {
         if (CATEGORY_MAP.containsKey(parentName)) {
             CATEGORY_MAP.remove(parentName);
             EMOJI_MAP.remove(parentName);
+            CATEGORY_TYPE_MAP.remove(parentName); // 🔥 修复：同时删除类型映射
             saveCustomCategories();
             return true;
         }
@@ -361,7 +388,8 @@ public class CategoryManager {
 
     /**
      * 保存自定义分类到文件
-     * 格式：parent,child1;child2;child3
+     * 格式：parent,type,child1;child2;child3
+     * 其中 type 为 "收入" 或 "支出"
      */
     private static void saveCustomCategories() {
         try (BufferedWriter writer = new BufferedWriter(
@@ -370,10 +398,11 @@ public class CategoryManager {
             for (Map.Entry<String, List<String>> entry : CATEGORY_MAP.entrySet()) {
                 String parent = entry.getKey();
                 List<String> children = entry.getValue();
+                String type = CATEGORY_TYPE_MAP.getOrDefault(parent, "支出");
                 
-                // 格式：一级分类,二级分类1;二级分类2;二级分类3
+                // 🔥 新格式：一级分类,类型,二级分类1;二级分类2;二级分类3
                 String childrenStr = String.join(";", children);
-                writer.write(parent + "," + childrenStr);
+                writer.write(parent + "," + type + "," + childrenStr);
                 writer.newLine();
             }
         } catch (IOException e) {
@@ -383,6 +412,9 @@ public class CategoryManager {
 
     /**
      * 从文件加载自定义分类
+     * 支持新旧两种格式：
+     * - 旧格式：parent,child1;child2;child3
+     * - 新格式：parent,type,child1;child2;child3
      */
     private static void loadCustomCategories() {
         File file = new File(CUSTOM_CATEGORY_FILE);
@@ -397,20 +429,33 @@ public class CategoryManager {
             while ((line = reader.readLine()) != null) {
                 if (line.trim().isEmpty()) continue;
                 
-                String[] parts = line.split(",", 2);
+                String[] parts = line.split(",", 3);
                 if (parts.length < 1) continue;
                 
                 String parent = parts[0].trim();
+                String type = "支出"; // 默认类型
+                int childrenIndex = 1;
+                
+                // 🔥 判断是新格式还是旧格式
+                if (parts.length >= 2) {
+                    String secondPart = parts[1].trim();
+                    // 如果第二部分是 "收入" 或 "支出"，说明是新格式
+                    if ("收入".equals(secondPart) || "支出".equals(secondPart)) {
+                        type = secondPart;
+                        childrenIndex = 2;
+                    }
+                }
                 
                 // 如果是新的一级分类（不在默认分类中），添加它
                 if (!CATEGORY_MAP.containsKey(parent)) {
                     CATEGORY_MAP.put(parent, new ArrayList<>());
                     EMOJI_MAP.put(parent, "\uD83C\uDFF7");
+                    CATEGORY_TYPE_MAP.put(parent, type);
                 }
                 
                 // 处理二级分类
-                if (parts.length == 2 && !parts[1].trim().isEmpty()) {
-                    String[] children = parts[1].split(";");
+                if (parts.length > childrenIndex && !parts[childrenIndex].trim().isEmpty()) {
+                    String[] children = parts[childrenIndex].split(";");
                     List<String> childList = CATEGORY_MAP.get(parent);
                     
                     for (String child : children) {

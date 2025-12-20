@@ -14,7 +14,7 @@
                 <Insets bottom="30.0" left="30.0" right="30.0" top="30.0" />
             </padding>
             <children>
-                <Label style="-fx-font-size: 22px; -fx-font-weight: bold; -fx-text-fill: #303133;" text="记一笔" />
+                <Label fx:id="titleLabel" style="-fx-font-size: 22px; -fx-font-weight: bold; -fx-text-fill: #303133;" text="记一笔" />
 
                 <Separator />
 
