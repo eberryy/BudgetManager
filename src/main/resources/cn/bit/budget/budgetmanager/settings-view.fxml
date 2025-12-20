@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import com.jfoenix.controls.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?>
+
+<VBox spacing="20.0" prefWidth="450.0" style="-fx-background-color: white;" xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1">
+    <children>
+        <HBox alignment="CENTER_LEFT" spacing="15.0" style="-fx-background-color: #fdf6ec; -fx-padding: 15; -fx-background-radius: 8;">
+            <children>
+                <VBox HBox.hgrow="ALWAYS" spacing="5.0">
+                    <Label text="AI 自动创建模式" style="-fx-font-weight: bold; -fx-text-fill: #e6a23c; -fx-font-size: 15px;" />
+                    <Label text="开启后，AI 发现新分类将直接创建，不再询问" style="-fx-font-size: 12px; -fx-text-fill: #e6a23c;" wrapText="true" />
+                </VBox>
+                <JFXToggleButton fx:id="autoModeToggle" size="10.0" unToggleLineColor="#DCDFE6" />
+            </children>
+        </HBox>
+
+        <Separator />
+
+        <VBox spacing="10.0">
+            <children>
+                <Label text="AI 个性化指令 (User Profile)" style="-fx-font-weight: bold; -fx-text-fill: #303133; -fx-font-size: 15px;" />
+                <Label text="告诉 AI 您的特殊记账习惯（如：校园卡充值属于餐饮）" style="-fx-font-size: 12px; -fx-text-fill: #909399;" />
+
+                <JFXListView fx:id="instructionListView" prefHeight="200.0" styleClass="modern-list-view" />
+
+                <HBox spacing="10.0">
+                    <children>
+                        <TextField fx:id="newInstructionField" promptText="键入新的个性化规则..." HBox.hgrow="ALWAYS"
+                                   style="-fx-background-color: #f4f4f5; -fx-border-color: transparent; -fx-background-radius: 4;" />
+                        <JFXButton fx:id="btnAddInstruction" text="添加" style="-fx-background-color: #409eff; -fx-text-fill: white; -fx-font-weight: bold;" />
+                    </children>
+                </HBox>
+            </children>
+        </VBox>
+    </children>
+    <padding>
+        <Insets bottom="20.0" left="25.0" right="25.0" top="20.0" />
+    </padding>
+</VBox>

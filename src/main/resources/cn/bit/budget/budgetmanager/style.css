@@ -386,3 +386,50 @@
     -fx-font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
     -fx-font-size: 12px;
 }
+
+/* 设置界面特供列表样式 */
+.modern-list-view {
+    -fx-background-color: #fafafa;
+    -fx-background-radius: 6;
+    -fx-border-color: #ebeef5;
+    -fx-border-radius: 6;
+}
+
+.modern-list-view .jfx-list-cell {
+    -fx-background-color: transparent;
+    -fx-border-width: 0 0 1 0;
+    -fx-border-color: #f0f0f0;
+    -fx-padding: 10 5;
+}
+
+/* 移除报错的 last-visible */
+.modern-list-view .jfx-list-cell {
+    -fx-background-color: transparent;
+    /* 改为使用 -fx-border-color 并在 Java 代码或全局中统一处理 */
+    -fx-border-width: 0 0 1 0;
+    -fx-border-color: #f0f0f0;
+    -fx-padding: 10 15; /* 增加一点左右内边距，更有高级感 */
+}
+
+
+/* 简单的悬停效果 */
+.modern-list-view .jfx-list-cell:hover {
+    -fx-background-color: #f5f7fa;
+}
+
+/* 专门针对审查表格的紧凑样式 */
+.review-table .table-row-cell {
+    -fx-cell-size: 40px; /* 从之前的 48px 降下来 */
+    -fx-padding: 0;
+}
+
+.review-table .table-cell {
+    -fx-padding: 4 12;
+}
+
+/* 修正表格中的 ComboBox 样式，让它别那么突兀 */
+.review-table .combo-box {
+    -fx-background-insets: 0;
+    -fx-padding: 2;
+}
+

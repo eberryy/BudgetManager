@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import com.jfoenix.controls.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?>
+
+<VBox spacing="15.0" prefWidth="960.0" prefHeight="540.0" style="-fx-background-color: white;"
+      xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1">
+    <children>
+        <VBox spacing="8.0" style="-fx-background-color: #f0f9eb; -fx-padding: 15; -fx-background-radius: 8;">
+            <children>
+                <HBox alignment="CENTER_LEFT">
+                    <children>
+                        <Label fx:id="statusLabel" text="🤖 AI 正在深度分析中..." style="-fx-font-weight: bold; -fx-text-fill: #67c23a; -fx-font-size: 14px;" />
+                        <Region HBox.hgrow="ALWAYS" />
+                        <Label fx:id="progressText" text="准备中..." style="-fx-text-fill: #909399;" />
+                    </children>
+                </HBox>
+                <ProgressBar fx:id="importProgressBar" progress="0.0" prefWidth="920.0" minHeight="15.0"
+                             style="-fx-accent: #67c23a;" />
+            </children>
+        </VBox>
+
+        <TableView fx:id="reviewTable" VBox.vgrow="ALWAYS" styleClass="review-table">
+            <columns>
+                <TableColumn fx:id="colRemark" prefWidth="220.0" text="交易描述" />
+                <TableColumn fx:id="colAmount" prefWidth="100.0" text="金额" />
+                <TableColumn fx:id="colAiSuggest" prefWidth="200.0" text="AI 建议分类 (点击可修改)" />
+                <TableColumn fx:id="colStatus" prefWidth="180.0" text="状态 / 操作" />
+            </columns>
+        </TableView>
+
+        <HBox alignment="CENTER_LEFT" spacing="10.0">
+            <children>
+                <Label text="💡 提示：红色表示 AI 建议创建新分类，您可以勾选批准或在下拉框中指定现有分类。"
+                       style="-fx-font-size: 12px; -fx-text-fill: #909399;" wrapText="true" />
+            </children>
+        </HBox>
+    </children>
+    <padding>
+        <Insets bottom="20.0" left="20.0" right="20.0" top="20.0" />
+    </padding>
+</VBox>

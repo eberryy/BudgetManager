@@ -15,9 +15,14 @@ public class CategoryManager {
     // 自定义分类存储文件
     private static final String CUSTOM_CATEGORY_FILE = "custom_categories.csv";
 
+    // 存储用户设定的个性化分类偏好信息
+    private static final String PERSONALIZATION_FILE = "user_personalization.txt";
+    private static final List<String> PERSONALIZATIONS = new ArrayList<>();
+
     static {
         initDefaultCategories();
         loadCustomCategories(); // 加载用户自定义分类
+        loadPersonalizations();
     }
 
     /**
@@ -192,11 +197,15 @@ public class CategoryManager {
     }
 
     // 动态添加一级分类
+// 动态添加一级分类
     public static void addCustomParentCategory(String parentName) {
         if (!CATEGORY_MAP.containsKey(parentName)) {
             CATEGORY_MAP.put(parentName, new ArrayList<>());
-            EMOJI_MAP.put(parentName, "\uD83C\uDFF7");
-            saveCustomCategories(); // 持久化保存
+            // 🔥 核心修改：只有原来没图标时才设为默认，防止覆盖
+            if (!EMOJI_MAP.containsKey(parentName)) {
+                EMOJI_MAP.put(parentName, "\uD83C\uDFF7");
+            }
+            saveCustomCategories();
         }
     }
 
@@ -206,8 +215,11 @@ public class CategoryManager {
             List<String> children = CATEGORY_MAP.get(parent);
             if (!children.contains(childName)) {
                 children.add(childName);
-                EMOJI_MAP.put(childName, "\uD83C\uDFF7");
-                saveCustomCategories(); // 持久化保存
+                // 🔥 核心修改：保护已有的漂亮图标
+                if (!EMOJI_MAP.containsKey(childName)) {
+                    EMOJI_MAP.put(childName, "\uD83C\uDFF7");
+                }
+                saveCustomCategories();
             }
         }
     }
@@ -415,5 +427,67 @@ public class CategoryManager {
         } catch (IOException e) {
             System.err.println("加载自定义分类失败：" + e.getMessage());
         }
+    }
+
+    /**
+     * 导出支出分类树：Map<一级分类, List<二级分类>>
+     */
+    public static Map<String, List<String>> getExpenseCategoryTree() {
+        Map<String, List<String>> tree = new LinkedHashMap<>();
+        Set<String> expenseParents = getExpenseCategories();
+        for (String parent : expenseParents) {
+            tree.put(parent, getChildCategories(parent));
+        }
+        return tree;
+    }
+
+    /**
+     * 导出收入分类树
+     */
+    public static Map<String, List<String>> getIncomeCategoryTree() {
+        Map<String, List<String>> tree = new LinkedHashMap<>();
+        Set<String> incomeParents = getIncomeCategories();
+        for (String parent : incomeParents) {
+            tree.put(parent, getChildCategories(parent));
+        }
+        return tree;
+    }
+
+    // --- 个性化信息管理 ---
+    public static void addPersonalization(String info) {
+        if (info != null && !info.trim().isEmpty() && !PERSONALIZATIONS.contains(info)) {
+            PERSONALIZATIONS.add(info.trim());
+            savePersonalizations();
+        }
+    }
+
+    public static void removePersonalization(String info) {
+        PERSONALIZATIONS.remove(info);
+        savePersonalizations();
+    }
+
+    public static List<String> getPersonalizations() {
+        return new ArrayList<>(PERSONALIZATIONS);
+    }
+
+    private static void savePersonalizations() {
+        try (PrintWriter writer = new PrintWriter(new OutputStreamWriter(
+                new FileOutputStream(PERSONALIZATION_FILE), StandardCharsets.UTF_8))) {
+            for (String p : PERSONALIZATIONS) {
+                writer.println(p);
+            }
+        } catch (IOException e) { e.printStackTrace(); }
+    }
+
+    private static void loadPersonalizations() {
+        File file = new File(PERSONALIZATION_FILE);
+        if (!file.exists()) return;
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(
+                new FileInputStream(file), StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (!line.trim().isEmpty()) PERSONALIZATIONS.add(line.trim());
+            }
+        } catch (IOException e) { e.printStackTrace(); }
     }
 }
