@@ -3,157 +3,155 @@ package cn.bit.budget.dao;
 import cn.bit.budget.model.Bill;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.sql.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
-import java.nio.charset.StandardCharsets;
-import java.io.FileOutputStream;
-import java.io.FileInputStream;
-import java.io.OutputStreamWriter;
-import java.io.InputStreamReader;
+
 
 /**
- * 数据存储类 (V2.1)
- * 适配二级分类字段 (id, amount, category, subCategory, date, type, remark, createTime)
+ * 数据存储类 (V3.0 - SQLite 数据库版)
+ * 相比 CSV 版本：支持 ACID 事务、毫秒级查询、数据类型强制约束
  */
 public class DataStore {
 
-    private static final String FILE_NAME = "budget_data.csv";
+    private static final String DB_URL = "jdbc:sqlite:budget_manager.db";
     private static final DateTimeFormatter DATETIME_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
 
-    private DataStore() {
+    static {
+        // 1. 初始化数据库表结构
+        initDatabase();
     }
 
+    private DataStore() {}
 
-    public static void saveBills(List<Bill> bills) {
-        // 【修复】使用 OutputStreamWriter 强制指定 UTF-8 编码写入
-        try (BufferedWriter writer = new BufferedWriter(
-                new OutputStreamWriter(new FileOutputStream(FILE_NAME), StandardCharsets.UTF_8))) { //
-
-            for (Bill bill : bills) {
-                String line = String.format("%s,%.2f,%s,%s,%s,%s,%s,%s",
-                        bill.getId(),
-                        bill.getAmount(),
-                        escapeCsv(bill.getCategory()),
-                        escapeCsv(bill.getSubCategory()),
-                        bill.getDate().toString(),
-                        escapeCsv(bill.getType()),
-                        escapeCsv(bill.getRemark()),
-                        bill.getCreateTime().format(DATETIME_FORMATTER)
-                );
-                writer.write(line);
-                writer.newLine();
-            }
-        } catch (IOException e) {
-            System.err.println("保存数据错误：" + e.getMessage());
+    /**
+     * 初始化数据库：如果表不存在则创建
+     */
+    private static void initDatabase() {
+        String sql = """
+            CREATE TABLE IF NOT EXISTS bills (
+                id TEXT PRIMARY KEY,
+                amount REAL NOT NULL,
+                category TEXT NOT NULL,
+                sub_category TEXT,
+                date TEXT NOT NULL,
+                type TEXT NOT NULL,
+                remark TEXT,
+                create_time TEXT NOT NULL
+            );
+            """;
+        try (Connection conn = DriverManager.getConnection(DB_URL);
+             Statement stmt = conn.createStatement()) {
+            stmt.execute(sql);
+        } catch (SQLException e) {
+            System.err.println("数据库初始化失败: " + e.getMessage());
         }
-    }
-
-    public static List<Bill> loadBills() {
-        List<Bill> bills = new ArrayList<>();
-        File file = new File(FILE_NAME);
-        if (!file.exists()) return bills;
-
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                if (line.trim().isEmpty()) continue;
-
-                try {
-                    String[] parts = line.split(",", -1);
-
-                    // 兼容旧数据逻辑：如果只有 7 列，说明是老版本数据
-                    // 新版本应该是 8 列
-
-                    String id = parts[0];
-                    double amount = Double.parseDouble(parts[1]);
-                    String category = unescapeCsv(parts[2]);
-
-                    String subCategory = null;
-                    LocalDate date;
-                    String type;
-                    String remark;
-                    LocalDateTime createTime;
-
-                    if (parts.length >= 8) {
-                        // 新版数据格式
-                        subCategory = unescapeCsv(parts[3]);
-                        date = LocalDate.parse(parts[4]);
-                        type = unescapeCsv(parts[5]);
-                        remark = unescapeCsv(parts[6]);
-                        createTime = LocalDateTime.parse(parts[7], DATETIME_FORMATTER);
-                    } else if (parts.length == 7) {
-                        // 旧版数据兼容 (subCategory 默认为 null)
-                        // 旧格式：id, amount, category, date, type, remark, createTime
-                        date = LocalDate.parse(parts[3]);
-                        type = unescapeCsv(parts[4]);
-                        remark = unescapeCsv(parts[5]);
-                        createTime = LocalDateTime.parse(parts[6], DATETIME_FORMATTER);
-                    } else {
-                        continue; // 无效行
-                    }
-
-                    Bill bill = new Bill(id, amount, category, subCategory, date, type, remark, createTime);
-                    bills.add(bill);
-
-                } catch (Exception e) {
-                    System.err.println("跳过错误行: " + e.getMessage());
-                }
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        bills.sort((b1, b2) -> {
-            if (b2.getDate().equals(b1.getDate())) {
-                // 如果日期相同，按创建时间倒序（后记的在上面）
-                return b2.getCreateTime().compareTo(b1.getCreateTime());
-            }
-            return b2.getDate().compareTo(b1.getDate());
-        });
-
-        System.out.println(
-                "成功加载 " + bills.size() + " 条账单记录。"
-        );
-        return bills;
-    }
-
-    private static String escapeCsv(String value) {
-        return (value == null || value.isEmpty()) ? "" : value.replace(",", "&#44;").trim();
-    }
-
-    private static String unescapeCsv(String value) {
-        return (value == null || value.isEmpty()) ? "" : value.replace("&#44;", ",");
     }
 
     /**
-     * 删除指定一级分类的所有账单
-     * @param category 要删除的一级分类名称
-     * @return 删除的账单数量
+     * 全量保存账单（兼容原有逻辑）
+     * 采用“删除记录+事务批处理插入”方案，确保原子性
+     */
+    public static void saveBills(List<Bill> bills) {
+        String deleteSql = "DELETE FROM bills";
+        String insertSql = "INSERT INTO bills VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+
+        try (Connection conn = DriverManager.getConnection(DB_URL)) {
+            conn.setAutoCommit(false); // 🔥 开启事务
+
+            // 1. 先清空表（对应原来 CSV 的覆盖写入）
+            try (Statement delStmt = conn.createStatement()) {
+                delStmt.executeUpdate(deleteSql);
+            }
+
+            // 2. 批量插入
+            try (PreparedStatement pstmt = conn.prepareStatement(insertSql)) {
+                for (Bill bill : bills) {
+                    pstmt.setString(1, bill.getId());
+                    pstmt.setDouble(2, bill.getAmount());
+                    pstmt.setString(3, bill.getCategory());
+                    pstmt.setString(4, bill.getSubCategory());
+                    pstmt.setString(5, bill.getDate().toString());
+                    pstmt.setString(6, bill.getType());
+                    pstmt.setString(7, bill.getRemark());
+                    pstmt.setString(8, bill.getCreateTime().format(DATETIME_FORMATTER));
+                    pstmt.addBatch(); // 添加到批处理
+                }
+                pstmt.executeBatch(); // 🔥 执行批处理
+            }
+
+            conn.commit(); // 🔥 提交事务
+        } catch (SQLException e) {
+            System.err.println("保存数据库失败，已回滚: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 从数据库加载所有账单
+     */
+    public static List<Bill> loadBills() {
+        List<Bill> bills = new ArrayList<>();
+        String sql = "SELECT * FROM bills ORDER BY date DESC, create_time DESC";
+
+        try (Connection conn = DriverManager.getConnection(DB_URL);
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+
+            while (rs.next()) {
+                Bill bill = new Bill(
+                        rs.getString("id"),
+                        rs.getDouble("amount"),
+                        rs.getString("category"),
+                        rs.getString("sub_category"),
+                        LocalDate.parse(rs.getString("date")),
+                        rs.getString("type"),
+                        rs.getString("remark"),
+                        LocalDateTime.parse(rs.getString("create_time"), DATETIME_FORMATTER)
+                );
+                bills.add(bill);
+            }
+        } catch (SQLException e) {
+            System.err.println("读取数据库失败: " + e.getMessage());
+        }
+
+        System.out.println("成功从 SQLite 加载 " + bills.size() + " 条账单记录。");
+        return bills;
+    }
+
+    /**
+     * 删除指定一级分类的所有账单（原生 SQL 实现，效率极高）
      */
     public static int deleteBillsByCategory(String category) {
-        List<Bill> bills = loadBills();
-        int originalSize = bills.size();
-        bills.removeIf(bill -> category.equals(bill.getCategory()));
-        saveBills(bills);
-        return originalSize - bills.size();
+        String sql = "DELETE FROM bills WHERE category = ?";
+        try (Connection conn = DriverManager.getConnection(DB_URL);
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, category);
+            return pstmt.executeUpdate();
+        } catch (SQLException e) {
+            System.err.println("删除分类账单失败: " + e.getMessage());
+            return 0;
+        }
     }
 
     /**
      * 删除指定二级分类的所有账单
-     * @param parentCategory 一级分类名称
-     * @param subCategory 要删除的二级分类名称
-     * @return 删除的账单数量
      */
     public static int deleteBillsBySubCategory(String parentCategory, String subCategory) {
-        List<Bill> bills = loadBills();
-        int originalSize = bills.size();
-        bills.removeIf(bill -> 
-            parentCategory.equals(bill.getCategory()) && 
-            subCategory.equals(bill.getSubCategory())
-        );
-        saveBills(bills);
-        return originalSize - bills.size();
+        String sql = "DELETE FROM bills WHERE category = ? AND sub_category = ?";
+        try (Connection conn = DriverManager.getConnection(DB_URL);
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, parentCategory);
+            pstmt.setString(2, subCategory);
+            return pstmt.executeUpdate();
+        } catch (SQLException e) {
+            System.err.println("删除二级分类账单失败: " + e.getMessage());
+            return 0;
+        }
     }
+
 }
+

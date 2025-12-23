@@ -14,7 +14,7 @@ import java.util.concurrent.CompletableFuture;
 public class AICategorizer {
 
     // 替换为你的 SiliconCloud / DeepSeek Key
-    private static final String API_KEY = "sk-kovzrnozjojynhribjnternslpdyptambrkrzjdbquyldady";
+    private static final String API_KEY = "api不给看";
     private static final String API_URL = "https://api.siliconflow.cn/v1/chat/completions";
     // 推荐使用能力更强的模型来处理这种复杂逻辑
     private static final String MODEL_NAME = "deepseek-ai/DeepSeek-V3";

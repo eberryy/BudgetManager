@@ -8,6 +8,7 @@ module cn.bit.budget.budgetmanager {
     requires javafx.graphics;
     requires java.net.http;
     requires com.google.gson;
+    requires java.sql;
     // 允许 JFoenix 反射访问你的 Controller 包，否则 UI 组件没法注入
     opens cn.bit.budget.controller to javafx.fxml, com.jfoenix, javafx.base;
     // 允许 JFoenix 访问你的模型（如果有用到数据绑定）

@@ -44,7 +44,6 @@ import java.util.function.Consumer;
 import javafx.util.Duration;
 
 import javafx.geometry.Pos;
-import javafx.geometry.Insets;
 
 /**
  * 主界面控制器 (V2.0)
@@ -1187,7 +1186,7 @@ public class HelloController implements Initializable {
                                 if (groupedBills.containsKey(uniqueId)) {
                                     // 每一组经过审计的分类，都会被应用到 groupedBills.get(uniqueId) 里的所有账单
                                     Bill sample = groupedBills.get(uniqueId).get(0);
-                                    reviewData.add(new ReviewItem(sample, res, uniqueId)); // 需确保 ReviewItem 构造函数支持 uniqueId
+                                    reviewData.add(new ReviewItem(sample, res, uniqueId, isAutoCreateCategory)); // 需确保 ReviewItem 构造函数支持 uniqueId
                                 }
                             });
 
@@ -1380,133 +1379,6 @@ public class HelloController implements Initializable {
         updateCategoryFilterByType(); // 刷新主界面左侧的筛选下拉框
         showGeneralSuccess("成功导入并分类 " + rawBills.size() + " 条账单！");
     }
-    /**
-     * 最终应用分类到账单
-     * @param approvedNewCategories 用户(或自动模式)批准创建的新分类列表
-     */
-    private void applyCategories(List<Bill> rawBills, Map<String, AICategorizer.CategoryResult> resultMap, java.util.Set<String> approvedNewCategories) {
-        int count = 0;
-        for (Bill bill : rawBills) {
-            String key = bill.getRemark().split("-")[0];
-            AICategorizer.CategoryResult res = resultMap.get(key);
-
-            if (res != null) {
-                String finalCategory;
-
-                if (res.isNew) {
-                    // 如果是新分类，检查是否被批准
-                    if (approvedNewCategories != null && approvedNewCategories.contains(res.suggestion)) {
-                        finalCategory = res.suggestion; // ✅ 批准：使用新分类
-                    } else {
-                        finalCategory = res.fallback;   // ❌ 拒绝：使用兜底分类 (Plan B)
-                    }
-                } else {
-                    finalCategory = res.suggestion; // 原有分类，直接用
-                }
-
-                // 再次校验合法性 (防止 fallback 也是瞎编的)
-                if (CategoryManager.getParentCategories().contains(finalCategory)) {
-                    bill.setCategory(finalCategory);
-                    bill.setSubCategory(null);
-                    count++;
-                } else {
-                    bill.setCategory("其他"); // 最后的最后，真正的兜底
-                }
-            }
-        }
-
-        // 保存并刷新
-        allBills.addAll(rawBills);
-        DataStore.saveBills(allBills);
-        onSearchClick(null);
-        updateCategoryFilterByType();
-
-        if (approvedNewCategories == null || approvedNewCategories.isEmpty()) {
-            showGeneralSuccess("导入完成 (已使用现有分类归档 " + count + " 条)");
-        }
-    }
-
-    /**
-     * 模拟 Agent 交互对话框 (用户决策)
-     */
-    private void showAgentInteractionDialog(Map<String, String> proposals, List<Bill> rawBills, Map<String, AICategorizer.CategoryResult> resultMap) {
-        JFXDialogLayout content = new JFXDialogLayout();
-        content.setHeading(new Label("🤖 待确认的分类建议"));
-
-        // 构建提示信息：左边是建议(Plan A)，右边是如果不选的后果(Plan B)
-        StringBuilder sb = new StringBuilder("AI 发现部分账单不属于现有分类，建议方案如下：\n\n");
-
-        for (Map.Entry<String, String> entry : proposals.entrySet()) {
-            sb.append(String.format("• 🆕 %s  (若拒绝则归入: %s)\n", entry.getKey(), entry.getValue()));
-        }
-
-        sb.append("\n是否批准创建这些新分类？");
-
-        Label bodyText = new Label(sb.toString());
-        bodyText.setStyle("-fx-font-size: 14px; -fx-text-fill: #606266;");
-        content.setBody(bodyText);
-
-        JFXDialog dialog = new JFXDialog(rootStackPane, content, JFXDialog.DialogTransition.CENTER);
-        dialog.setOverlayClose(false); // 必须做决定
-
-        // 按钮 A: 拒绝 (Use Fallback)
-        JFXButton btnReject = new JFXButton("拒绝 (使用已有分类)");
-        btnReject.setStyle("-fx-text-fill: #909399;");
-        btnReject.setOnAction(e -> {
-            dialog.close();
-            // 传一个空的 Set，表示一个都没批准 -> 全部走 Fallback 逻辑
-            applyCategories(rawBills, resultMap, new java.util.HashSet<>());
-            showGeneralSuccess("已拒绝新分类，将使用相近分类归档。");
-        });
-
-        // 按钮 B: 批准 (Create New)
-        JFXButton btnConfirm = new JFXButton("批准创建");
-        btnConfirm.setStyle("-fx-text-fill: #409eff; -fx-font-weight: bold;");
-        btnConfirm.setOnAction(e -> {
-            dialog.close();
-            // 真正的创建逻辑在这里
-            for (String newCat : proposals.keySet()) {
-                CategoryManager.addCustomParentCategory(newCat);
-            }
-            // 传入所有新分类 -> 全部走 New Logic
-            applyCategories(rawBills, resultMap, proposals.keySet());
-            showTopRightSuccess("Agent", "已成功创建并应用新分类");
-        });
-
-        content.setActions(btnReject, btnConfirm);
-        dialog.show();
-    }
-    /**
-     * 辅助方法：应用 AI 分类结果并保存
-     */
-    private void applyAiCategoriesAndSave(List<Bill> rawBills, Map<String, String> categoryMap) {
-        int autoCategorizedCount = 0;
-
-        for (Bill bill : rawBills) {
-            String key = bill.getRemark().split("-")[0];
-            String aiCat = categoryMap.get(key);
-
-            // 如果 AI 返回的分类系统里有 (可能是刚创建的，也可能是原有的)
-            if (aiCat != null && CategoryManager.getParentCategories().contains(aiCat)) {
-                bill.setCategory(aiCat);
-                bill.setSubCategory(null); // 清空二级
-                autoCategorizedCount++;
-            } else {
-                // 兜底策略：如果用户拒绝了创建新分类，或者 AI 返回了乱码
-                // 暂时归为 "其他" (你需要确保 CategoryManager 里有"其他"这个分类，或者保留原值)
-                bill.setCategory("其他");
-            }
-        }
-
-        allBills.addAll(rawBills);
-        DataStore.saveBills(allBills);
-        onSearchClick(null);
-
-        // 更新左侧筛选栏 (因为可能有新分类)
-        updateCategoryFilterByType();
-
-        showGeneralSuccess("导入成功！AI 自动归类了 " + autoCategorizedCount + " 条账单");
-    }
 
     @FXML
     void onHelpClick(ActionEvent event) {
@@ -1571,29 +1443,7 @@ public class HelloController implements Initializable {
         alert.showAndWait();
     }
 
-    /**
-     * 显示JFoenix风格的警告提示框
-     */
-    private void showJFoenixWarning(String title, String content) {
-        JFXDialogLayout dialogContent = new JFXDialogLayout();
-        dialogContent.setHeading(new Text(title));
-
-        Text bodyText = new Text(content);
-        bodyText.setStyle("-fx-font-size: 14px; -fx-fill: #606266;");
-        dialogContent.setBody(bodyText);
-
-        JFXDialog dialog = new JFXDialog(rootStackPane, dialogContent, JFXDialog.DialogTransition.CENTER);
-
-        // 确定按钮
-        JFXButton btnOk = new JFXButton("确定");
-        btnOk.setStyle("-fx-text-fill: #409eff; -fx-font-weight: bold; -fx-font-size: 14px;");
-        btnOk.setOnAction(e -> dialog.close());
-
-        dialogContent.setActions(btnOk);
-        dialog.show();
-    }
-
-// ==========================================
+    // ==========================================
     //       ✨ 通用右上角胶囊弹窗逻辑 ✨
     // ==========================================
 
@@ -1684,41 +1534,6 @@ public class HelloController implements Initializable {
     }
 
     /**
-     * 显示加载中弹窗 (禁止点击外部关闭)
-     * @param message 提示文字，如 "AI 正在思考中..."
-     * @return 返回 dialog 对象，以便任务完成后手动调用 .close()
-     */
-    private JFXDialog showLoadingDialog(String message) {
-        JFXDialogLayout content = new JFXDialogLayout();
-
-        // 1. 创建加载动画
-        javafx.scene.control.ProgressIndicator spinner = new javafx.scene.control.ProgressIndicator();
-        spinner.setPrefSize(30, 30);
-
-        // 2. 创建提示文字
-        Label label = new Label(message);
-        label.setStyle("-fx-font-size: 15px; -fx-text-fill: #606266; -fx-font-weight: bold;");
-
-        // 3. 布局：垂直排列，居中
-        VBox layout = new VBox(15, spinner, label); // 间距 15px
-        layout.setAlignment(Pos.CENTER);
-        layout.setPadding(new Insets(20)); // 内边距，让弹窗不那么挤
-
-        content.setBody(layout);
-
-        // 4. 创建弹窗 (依附于 rootStackPane)
-        JFXDialog dialog = new JFXDialog(rootStackPane, content, JFXDialog.DialogTransition.CENTER);
-
-        // 🔥🔥🔥 核心设置 🔥🔥🔥
-        // 设置为 false，禁止用户点击遮罩层关闭弹窗
-        // 这样用户在 AI 分析完成前就无法操作其他界面，保证数据安全
-        dialog.setOverlayClose(false);
-
-        dialog.show();
-        return dialog;
-    }
-
-    /**
      * 辅助方法：将 Bill 对象包装成发送给 AI 的数据格式
      */
     private Map<String, Object> prepareBillForAi(Bill b) {
@@ -1760,13 +1575,16 @@ public class HelloController implements Initializable {
         private final String billType;
         private final String uniqueId;
 
-        public ReviewItem(Bill bill, AICategorizer.CategoryResult res, String uniqueId) {
+        public ReviewItem(Bill bill, AICategorizer.CategoryResult res, String uniqueId, boolean autoApproveSetting) {
             this.originalDesc = bill.getRemark().split("-")[0];
             this.isNew.set(res.isNew);
             this.fallback = res.fallback;
             this.billType = bill.getType();
             this.uniqueId = uniqueId;
 
+            // 如果 AI 建议是新分类，根据 auto 设置来定初始值
+            // 如果不是新分类，默认就是“已批准”（因为不需要创建）
+            this.approved.set(!res.isNew || autoApproveSetting);
             // 解析 AI 的建议，例如 "餐饮 - 三餐"
             if (res.suggestion.contains(" - ")) {
                 String[] parts = res.suggestion.split(" - ");

@@ -9,8 +9,8 @@
         <HBox alignment="CENTER_LEFT" spacing="15.0" style="-fx-background-color: #fdf6ec; -fx-padding: 15; -fx-background-radius: 8;">
             <children>
                 <VBox HBox.hgrow="ALWAYS" spacing="5.0">
-                    <Label text="AI 自动创建模式" style="-fx-font-weight: bold; -fx-text-fill: #e6a23c; -fx-font-size: 15px;" />
-                    <Label text="开启后，AI 发现新分类将直接创建，不再询问" style="-fx-font-size: 12px; -fx-text-fill: #e6a23c;" wrapText="true" />
+                    <Label text="信任模式" style="-fx-font-weight: bold; -fx-text-fill: #e6a23c; -fx-font-size: 15px;" />
+                    <Label text="开启后，AI 发现新分类将自动勾选批准创建" style="-fx-font-size: 12px; -fx-text-fill: #e6a23c;" wrapText="true" />
                 </VBox>
                 <JFXToggleButton fx:id="autoModeToggle" size="10.0" unToggleLineColor="#DCDFE6" />
             </children>
