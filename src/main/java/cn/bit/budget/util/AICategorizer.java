@@ -71,7 +71,7 @@ public class AICategorizer {
             ));
             requestBody.put("stream", false);
             requestBody.put("temperature", 0.1);
-            requestBody.put("max_tokens", 9128); // 稍微调大一点，因为返回结构变复杂了
+            requestBody.put("max_tokens", 12000); // 稍微调大一点，因为返回结构变复杂了
 
             String jsonBody = gson.toJson(requestBody);
 
@@ -79,7 +79,7 @@ public class AICategorizer {
                     .uri(URI.create(API_URL))
                     .header("Content-Type", "application/json")
                     .header("Authorization", "Bearer " + API_KEY)
-                    .timeout(Duration.ofSeconds(70))
+                    .timeout(Duration.ofSeconds(90))
                     .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
                     .build();
 
