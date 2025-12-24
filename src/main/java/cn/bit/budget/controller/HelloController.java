@@ -1149,8 +1149,6 @@ public class HelloController implements Initializable {
      * 核心分批逻辑 (V3.0 - 唯一ID绑定版)
      * 解决了重复键报错 (如美团收支并存) 和漏网之鱼问题
      */
-    // java/cn/bit/budget/controller/HelloController.java
-
     private void runBatchCategorization(List<Bill> rawBills, TableView<ReviewItem> table,
                                         ProgressBar pb, Label pText, Label sLabel, Button btn) {
         // 1. 物理分组逻辑保持不变
@@ -1220,13 +1218,39 @@ public class HelloController implements Initializable {
 
     /**
      * 配置表格列 (包括 ComboBox 修正逻辑)
-     * @param table
      */
     private void setupReviewTableColumns(TableView<ReviewItem> table) {
         // 1. 描述列
         TableColumn<ReviewItem, String> colDesc = new TableColumn<>("交易描述");
         colDesc.setCellValueFactory(new PropertyValueFactory<>("originalDesc"));
         colDesc.setPrefWidth(240);
+        // 自定义单元格工厂，根据是否为新分类显示颜色
+        colDesc.setCellFactory(column -> new TableCell<>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+
+                if (empty || item == null) {
+                    setText(null);
+                    setGraphic(null);
+                    setStyle("");
+                } else {
+                    // 获取当前行的数据对象
+                    ReviewItem rowData = getTableView().getItems().get(getIndex());
+                    setText(item);
+
+                    if (rowData != null && rowData.isNewProperty().get()) {
+                        // 如果 AI 建议的是新分类，文字标红并加粗
+                        setTextFill(javafx.scene.paint.Color.RED);
+                        setStyle("-fx-background-color: #fff1f0; -fx-font-weight: bold;");
+                    } else {
+                        // 现有分类使用常规深色
+                        setTextFill(javafx.scene.paint.Color.web("#303133"));
+                        setStyle("");
+                    }
+                }
+            }
+        });
 
         // 2. 一级分类列 (ComboBox)
         TableColumn<ReviewItem, String> colParent = new TableColumn<>("一级分类");

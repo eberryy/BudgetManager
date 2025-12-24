@@ -55,10 +55,9 @@ public class AICategorizer {
                             "1. 首先根据金额正负判断：正数为收入，负数为支出。严禁混淆收支体系。\n" +
                             "2. 优先匹配二级分类。如果匹配，输出格式为 '一级分类 - 二级分类'。\n" +
                             "3. 无法完全匹配时，建议一个新的一级分类名称。禁止使用'其他'。\n" +
-                            "4. 必须提供 'fallback'，即如果不允许创建新分类时，最接近的【现有分类库】中的一级分类。\n\n" +
-                            "5. 请严格使用输入 JSON 中的 unique_id 作为你返回 JSON 的 Key。\n" +
-                            "6. 严格返回 JSON 字典格式，禁止包含 markdown 代码块标识\n" +
-                            "严格返回 JSON 字典：Key为原始描述，Value为 { \"UniqueKey\": { \"suggestion\": \"...\", \"isNew\": true, \"fallback\": \"...\"  }",
+                            "4. 必须提供 'fallback'，即如果不允许创建新分类时，最接近的【现有分类库】中的一级分类。\n" +
+                            "请严格返回一个 JSON 对象，其 Key 必须是待处理明细中提供的 unique_id，" +
+                            "Value 是一个包含 suggestion, isNew, fallback 的对象。不要包含任何 Markdown 格式。",
                     gson.toJson(expenseTree),
                     gson.toJson(incomeTree),
                     customInstructions,
@@ -72,7 +71,7 @@ public class AICategorizer {
             ));
             requestBody.put("stream", false);
             requestBody.put("temperature", 0.1);
-            requestBody.put("max_tokens", 4096); // 稍微调大一点，因为返回结构变复杂了
+            requestBody.put("max_tokens", 9128); // 稍微调大一点，因为返回结构变复杂了
 
             String jsonBody = gson.toJson(requestBody);
 
@@ -80,7 +79,7 @@ public class AICategorizer {
                     .uri(URI.create(API_URL))
                     .header("Content-Type", "application/json")
                     .header("Authorization", "Bearer " + API_KEY)
-                    .timeout(Duration.ofSeconds(60))
+                    .timeout(Duration.ofSeconds(70))
                     .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
                     .build();
 
@@ -96,7 +95,11 @@ public class AICategorizer {
             List<Map<String, Object>> choices = (List<Map<String, Object>>) respMap.get("choices");
             String content = (String) ((Map<String, Object>) choices.get(0).get("message")).get("content");
 
-            // 🔥 终极 JSON 提取大法：不管 AI 废话多少，只取大括号里的内容
+            // 1. 过滤 DeepSeek 的思考块
+            if (content.contains("</think>")) {
+                content = content.split("</think>")[1].trim();
+            }
+            // 2. 终极 JSON 提取大法：不管 AI 废话多少，只取大括号里的内容
             int startJson = content.indexOf("{");
             int endJson = content.lastIndexOf("}");
             if (startJson != -1 && endJson != -1 && startJson < endJson) {
@@ -106,7 +109,13 @@ public class AICategorizer {
                 return new HashMap<>();
             }
             // 解析为新的复杂结构
-            return gson.fromJson(content, new TypeToken<Map<String, CategoryResult>>(){}.getType());
+            try {
+                return gson.fromJson(content, new TypeToken<Map<String, CategoryResult>>(){}.getType());
+            } catch (Exception e) {
+                // 4. 🔥 解析失败时，把那个“断掉的 JSON”打印出来
+                System.err.println("Gson 解析失败！可能是被截断了：\n" + content);
+                throw e;
+            }
 
             } catch (Exception e) {
                 e.printStackTrace();
