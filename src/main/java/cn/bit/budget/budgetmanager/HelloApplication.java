@@ -1,5 +1,6 @@
 package cn.bit.budget.budgetmanager;
 
+import cn.bit.budget.util.CategoryManager;
 import javafx.application.Application;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Scene;

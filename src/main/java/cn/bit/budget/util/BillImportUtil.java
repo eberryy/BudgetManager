@@ -124,7 +124,14 @@ public class BillImportUtil {
                     String category = clean(columns[1]); // 这里必须是正确的中文，否则 CategoryManager 匹配不到 Emoji
                     String partner = clean(columns[2]);
                     String goods = clean(columns[3]);
-                    String type = clean(columns[4]);
+                    String rawType = clean(columns[4]);
+                    // 强制归一化：只允许系统识别的两个词
+                    String type = "支出";
+                    if (rawType.contains("收入")) {
+                        type = "收入";
+                    } else if (rawType.contains("支出")) {
+                        type = "支出";
+                    }
                     String amountStr = clean(columns[5]).replace("¥", "");
                     double amount = Double.parseDouble(amountStr);
 

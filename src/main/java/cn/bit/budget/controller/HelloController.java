@@ -1142,11 +1142,11 @@ public class HelloController implements Initializable {
      * 核心分批逻辑 (V3.0 - 唯一ID绑定版)
      * 解决了重复键报错 (如美团收支并存) 和漏网之鱼问题
      */
+    // java/cn/bit/budget/controller/HelloController.java
+
     private void runBatchCategorization(List<Bill> rawBills, TableView<ReviewItem> table,
                                         ProgressBar pb, Label pText, Label sLabel, Button btn) {
-
-        // 1. 全量分组：将所有账单按 [安全描述 + 收支类型] 进行物理捆绑
-        // 这样“美团|支出”和“美团|收入”会成为两个独立的组，拥有唯一的 UniqueKey
+        // 1. 物理分组逻辑保持不变
         Map<String, List<Bill>> groupedBills = rawBills.stream()
                 .collect(Collectors.groupingBy(b -> getSafeDesc(b.getRemark()) + "|" + b.getType()));
 
@@ -1156,55 +1156,59 @@ public class HelloController implements Initializable {
         ObservableList<ReviewItem> reviewData = FXCollections.observableArrayList();
         table.setItems(reviewData);
 
-        // 2. 链式异步调用
-        CompletableFuture<Void> chain = CompletableFuture.completedFuture(null);
-        int batchSize = 5;
+        // 2. 并行控制
+        int batchSize = 10; // 可以稍微调大，减少请求总数
+        java.util.concurrent.atomic.AtomicInteger processedCount = new java.util.concurrent.atomic.AtomicInteger(0);
+        List<CompletableFuture<Void>> futures = new ArrayList<>();
 
         for (int i = 0; i < totalItems; i += batchSize) {
             final int start = i;
             final int end = Math.min(i + batchSize, totalItems);
             List<String> batchKeys = allUniqueKeys.subList(start, end);
 
-            chain = chain.thenCompose(v -> {
-                // 构造 AI 格式的输入，明确告知唯一 ID
-                List<Map<String, Object>> batchItems = new ArrayList<>();
-                for (String key : batchKeys) {
-                    // 取该组第一个账单作为代表发送给 AI
-                    Bill sample = groupedBills.get(key).get(0);
-                    Map<String, Object> aiItem = prepareBillForAi(sample);
-                    aiItem.put("unique_id", key); // 🔥 注入唯一 ID，防止 JSON 重复键报错
-                    batchItems.add(aiItem);
-                }
+            // 构造 batchItems...
+            List<Map<String, Object>> batchItems = new ArrayList<>();
+            for (String key : batchKeys) {
+                Bill sample = groupedBills.get(key).get(0);
+                Map<String, Object> aiItem = prepareBillForAi(sample);
+                aiItem.put("unique_id", key);
+                batchItems.add(aiItem);
+            }
 
-                return AICategorizer.categorizeAsync(batchItems,
-                                CategoryManager.getExpenseCategoryTree(),
-                                CategoryManager.getIncomeCategoryTree(),
-                                CategoryManager.getPersonalizations())
-                        .thenAccept(results -> javafx.application.Platform.runLater(() -> {
-                            // 3. 根据 AI 返回的 UniqueKey 精准还原到 ReviewTable
-                            results.forEach((uniqueId, res) -> {
-                                if (groupedBills.containsKey(uniqueId)) {
-                                    // 每一组经过审计的分类，都会被应用到 groupedBills.get(uniqueId) 里的所有账单
-                                    Bill sample = groupedBills.get(uniqueId).get(0);
-                                    reviewData.add(new ReviewItem(sample, res, uniqueId, isAutoCreateCategory)); // 需确保 ReviewItem 构造函数支持 uniqueId
-                                }
-                            });
+            // 🔥 直接发起异步，不再链式等待
+            CompletableFuture<Void> future = AICategorizer.categorizeAsync(batchItems,
+                            CategoryManager.getExpenseCategoryTree(),
+                            CategoryManager.getIncomeCategoryTree(),
+                            CategoryManager.getPersonalizations())
+                    .thenAccept(results -> javafx.application.Platform.runLater(() -> {
+                        // 更新 UI 列表
+                        results.forEach((uniqueId, res) -> {
+                            if (groupedBills.containsKey(uniqueId)) {
+                                Bill sample = groupedBills.get(uniqueId).get(0);
+                                reviewData.add(new ReviewItem(sample, res, uniqueId, isAutoCreateCategory));
+                            }
+                        });
 
-                            // 更新进度条
-                            double p = (double) end / totalItems;
-                            pb.setProgress(p);
-                            pText.setText(end + " / " + totalItems);
-                        }));
-            });
+                        // 🔥 并行更新进度条：加多少算多少
+                        int current = processedCount.addAndGet(batchKeys.size());
+                        double p = (double) current / totalItems;
+                        pb.setProgress(p);
+                        pText.setText(current + " / " + totalItems);
+                    }));
+
+            futures.add(future);
         }
 
-        chain.thenRun(() -> javafx.application.Platform.runLater(() -> {
-            sLabel.setText("✅ 分析完成，请核对并修正结果");
-            btn.setDisable(false);
-        })).exceptionally(ex -> {
-            javafx.application.Platform.runLater(() -> showTopRightError("AI 分析中断：" + ex.getMessage()));
-            return null;
-        });
+        // 3. 监听“全员收工”
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
+                .thenRun(() -> javafx.application.Platform.runLater(() -> {
+                    sLabel.setText("✅ 全部分析完成，请核对并修正结果");
+                    btn.setDisable(false);
+                }))
+                .exceptionally(ex -> {
+                    javafx.application.Platform.runLater(() -> showTopRightError("AI 分析中断：" + ex.getMessage()));
+                    return null;
+                });
     }
 
     /**
@@ -1361,6 +1365,11 @@ public class HelloController implements Initializable {
             } else {
                 // 已有分类，直接用
                 finalParent = item.parentCategoryProperty().get();
+            }
+
+            if (finalSub != null && item.approvedProperty().get()) {
+                // 只有在一级分类确定后，且批准了，才尝试创建二级分类
+                CategoryManager.addCustomChildCategory(finalParent, finalSub);
             }
 
             // 精准同步：必须匹配 [描述] 和 [收支类型]
@@ -1540,7 +1549,9 @@ public class HelloController implements Initializable {
         Map<String, Object> map = new HashMap<>();
 
         // 1. 提取描述：通常取备注的第一部分作为核心特征
-        String cleanDesc = b.getRemark() != null ? b.getRemark().replace(" (导入)", "").split("-")[0] : "未知消费";
+        String rawDesc = b.getRemark() != null ? b.getRemark() : "";
+        // 🔥 彻底过滤掉双引号和换行符，防止 JSON 爆炸
+        String cleanDesc = rawDesc.replace("\"", "'").replace("\n", " ").trim();
         map.put("desc", cleanDesc);
 
         // 2. 传入金额：用于 AI 判断收支逻辑
@@ -1552,15 +1563,19 @@ public class HelloController implements Initializable {
         return map;
     }
 
-    private String getSafeDesc(String remark) {
+    private static String getSafeDesc(String remark) {
         if (remark == null || remark.isEmpty()) return "其他交易";
-        // 移除导入后缀
         String clean = remark.replace(" (导入)", "").trim();
-        // 针对“商户消费”这种没有横杠的情况，直接返回全文
+
+        // 如果备注里有横杠，取前半部分
         if (clean.contains("-")) {
-            String parts[] = clean.split("-");
-            // 如果横杠前是空的（如“-商户消费”），取全文，否则取前半部分
-            return parts[0].trim().isEmpty() ? clean : parts[0].trim();
+            String[] parts = clean.split("-");
+            String head = (parts.length > 0) ? parts[0].trim() : "";
+            // 🔥 如果前半部分是空的或者只有特殊符号，取后半部分或者全文
+            if (head.isEmpty() || head.equals("/")) {
+                return clean.length() > 1 ? clean : "未知消费";
+            }
+            return head;
         }
         return clean;
     }
@@ -1576,7 +1591,7 @@ public class HelloController implements Initializable {
         private final String uniqueId;
 
         public ReviewItem(Bill bill, AICategorizer.CategoryResult res, String uniqueId, boolean autoApproveSetting) {
-            this.originalDesc = bill.getRemark().split("-")[0];
+            this.originalDesc = getSafeDesc(bill.getRemark());
             this.isNew.set(res.isNew);
             this.fallback = res.fallback;
             this.billType = bill.getType();

@@ -6,6 +6,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -14,7 +15,7 @@ import java.util.concurrent.CompletableFuture;
 public class AICategorizer {
 
     // 替换为你的 SiliconCloud / DeepSeek Key
-    private static final String API_KEY = "api不给看";
+    private static final String API_KEY = "sk-kovzrnozjojynhribjnternslpdyptambrkrzjdbquyldady";
     private static final String API_URL = "https://api.siliconflow.cn/v1/chat/completions";
     // 推荐使用能力更强的模型来处理这种复杂逻辑
     private static final String MODEL_NAME = "deepseek-ai/DeepSeek-V3";
@@ -56,6 +57,7 @@ public class AICategorizer {
                             "3. 无法完全匹配时，建议一个新的一级分类名称。禁止使用'其他'。\n" +
                             "4. 必须提供 'fallback'，即如果不允许创建新分类时，最接近的【现有分类库】中的一级分类。\n\n" +
                             "5. 请严格使用输入 JSON 中的 unique_id 作为你返回 JSON 的 Key。\n" +
+                            "6. 严格返回 JSON 字典格式，禁止包含 markdown 代码块标识\n" +
                             "严格返回 JSON 字典：Key为原始描述，Value为 { \"UniqueKey\": { \"suggestion\": \"...\", \"isNew\": true, \"fallback\": \"...\"  }",
                     gson.toJson(expenseTree),
                     gson.toJson(incomeTree),
@@ -70,7 +72,7 @@ public class AICategorizer {
             ));
             requestBody.put("stream", false);
             requestBody.put("temperature", 0.1);
-            requestBody.put("max_tokens", 2048); // 稍微调大一点，因为返回结构变复杂了
+            requestBody.put("max_tokens", 4096); // 稍微调大一点，因为返回结构变复杂了
 
             String jsonBody = gson.toJson(requestBody);
 
@@ -78,18 +80,31 @@ public class AICategorizer {
                     .uri(URI.create(API_URL))
                     .header("Content-Type", "application/json")
                     .header("Authorization", "Bearer " + API_KEY)
+                    .timeout(Duration.ofSeconds(60))
                     .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
                     .build();
 
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            String rawBody = response.body();
+            // 🔥 关键：增加打印原始响应，帮你抓出“毒账单”
+            if (response.statusCode() != 200) {
+                System.err.println("API 错误: " + rawBody);
+            }
 
             // 解析逻辑
             Map<String, Object> respMap = gson.fromJson(response.body(), new TypeToken<Map<String, Object>>(){}.getType());
             List<Map<String, Object>> choices = (List<Map<String, Object>>) respMap.get("choices");
             String content = (String) ((Map<String, Object>) choices.get(0).get("message")).get("content");
 
-            content = content.replace("```json", "").replace("```", "").trim();
-
+            // 🔥 终极 JSON 提取大法：不管 AI 废话多少，只取大括号里的内容
+            int startJson = content.indexOf("{");
+            int endJson = content.lastIndexOf("}");
+            if (startJson != -1 && endJson != -1 && startJson < endJson) {
+                content = content.substring(startJson, endJson + 1);
+            } else {
+                System.err.println("AI 返回的内容不含有效 JSON: " + content);
+                return new HashMap<>();
+            }
             // 解析为新的复杂结构
             return gson.fromJson(content, new TypeToken<Map<String, CategoryResult>>(){}.getType());
 
