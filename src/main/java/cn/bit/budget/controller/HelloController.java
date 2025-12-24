@@ -110,6 +110,7 @@ public class HelloController implements Initializable {
         // 监听收支类型变化，动态更新分类筛选列表
         typeFilterBox.valueProperty().addListener((obs, oldVal, newVal) -> {
             updateCategoryFilterByType();
+            onSearchClick( null);
         });
 
         // 初始化一级分类
@@ -118,6 +119,12 @@ public class HelloController implements Initializable {
         // 监听一级分类变化，动态更新二级分类筛选列表
         filterCategoryBox.valueProperty().addListener((obs, oldVal, newVal) -> {
             updateSubCategoryFilter();
+            onSearchClick( null);
+        });
+
+        // 监听二级分类变化，动态更新表格数据
+        filterSubCategoryBox.valueProperty().addListener((obs, oldVal, newVal) -> {
+            onSearchClick( null);
         });
 
         // 初始化二级分类
