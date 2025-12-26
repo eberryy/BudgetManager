@@ -1413,8 +1413,8 @@ public class HelloController implements Initializable {
             }
         }
         // 保存入库并刷新主界面
-        allBills.addAll(rawBills);
-        DataStore.saveBills(allBills);
+        DataStore.addBillsIncremental(rawBills);
+        allBills = DataStore.loadBills();
         onSearchClick(null);
         updateCategoryFilterByType(); // 刷新主界面左侧的筛选下拉框
         showGeneralSuccess("成功导入并分类 " + rawBills.size() + " 条账单！");

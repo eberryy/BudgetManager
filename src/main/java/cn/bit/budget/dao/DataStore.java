@@ -90,6 +90,37 @@ public class DataStore {
         }
     }
 
+    // java/cn/bit/budget/dao/DataStore.java
+
+    /**
+     * 增量保存：只插入库里没有的账单
+     */
+    public static void addBillsIncremental(List<Bill> newBills) {
+        // 关键在于 OR IGNORE，这样重复导入同一个文件也不会报错或重记
+        String sql = "INSERT OR REPLACE INTO bills VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+
+        try (Connection conn = DriverManager.getConnection(DB_URL)) {
+            conn.setAutoCommit(false);
+            try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                for (Bill bill : newBills) {
+                    pstmt.setString(1, bill.getId());
+                    pstmt.setDouble(2, bill.getAmount());
+                    pstmt.setString(3, bill.getCategory());
+                    pstmt.setString(4, bill.getSubCategory());
+                    pstmt.setString(5, bill.getDate().toString());
+                    pstmt.setString(6, bill.getType());
+                    pstmt.setString(7, bill.getRemark());
+                    pstmt.setString(8, bill.getCreateTime().format(DATETIME_FORMATTER));
+                    pstmt.addBatch();
+                }
+                pstmt.executeBatch();
+            }
+            conn.commit();
+        } catch (SQLException e) {
+            System.err.println("增量保存失败: " + e.getMessage());
+        }
+    }
+
     /**
      * 从数据库加载所有账单
      */
