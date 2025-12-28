@@ -123,28 +123,35 @@ public class CategoryManager {
         }
     }
 
-    public static void addCustomChildCategory(String parent, String childName) {
+    /**
+     * 核心修改：支持指定 Emoji 的二级分类添加
+     */
+    public static void addCustomChildCategory(String parent, String childName, String emoji) {
         if (CATEGORY_MAP.containsKey(parent)) {
             List<String> children = CATEGORY_MAP.get(parent);
             if (!children.contains(childName)) {
-                String emoji = "\uD83C\uDFF7";
+                // 如果没传 emoji，使用默认的标签图标
+                String finalEmoji = (emoji == null) ? "\uD83C\uDFF7" : emoji;
                 String sql = "INSERT OR IGNORE INTO sub_categories(name, parent_name, emoji) VALUES (?, ?, ?)";
 
                 try (Connection conn = DriverManager.getConnection(DB_URL);
                      PreparedStatement pstmt = conn.prepareStatement(sql)) {
                     pstmt.setString(1, childName);
                     pstmt.setString(2, parent);
-                    pstmt.setString(3, emoji);
+                    pstmt.setString(3, finalEmoji);
                     pstmt.executeUpdate();
 
-                    // 更新内存
+                    // 同步更新内存
                     children.add(childName);
-                    if (!EMOJI_MAP.containsKey(childName)) {
-                        EMOJI_MAP.put(childName, emoji);
-                    }
+                    EMOJI_MAP.put(childName, finalEmoji);
                 } catch (SQLException e) { e.printStackTrace(); }
             }
         }
+    }
+
+    // 保留原有的单参数方法，方便 UI 调用
+    public static void addCustomChildCategory(String parent, String childName) {
+        addCustomChildCategory(parent, childName, null);
     }
 
     public static boolean deleteParentCategory(String parentName) {
@@ -292,189 +299,142 @@ public class CategoryManager {
 
     // --- 默认分类初始化 (Hardcoded) ---
     /**
-     * 这里使用 Unicode 转义序列 (Surrogate Pairs) 来定义 Emoji。
-     * 这样做的好处是：源文件是纯 ASCII 字符，彻底避免了 Windows GBK/UTF-8 编码冲突导致的乱码。
-     * 例如：\uD83C\uDF54 就是 🍔
+     * 默认分类初始化 (V3.1 - 数据库同步版)
+     * 核心逻辑：确保在一台“干净”的电脑上运行程序时，
+     * 所有默认的一级和二级分类及其对应的 Emoji 都能被持久化进 SQLite。
      */
     private static void initDefaultCategories() {
         // 1. 餐饮 (🍔 \uD83C\uDF54)
         addCustomParentCategory("餐饮", "支出");
-        CATEGORY_MAP.putIfAbsent("餐饮", new ArrayList<>(Arrays.asList("三餐", "咖啡", "奶茶", "食材", "柴米油盐", "零食", "水果")));
-        addSubEmojis(
-                "三餐", "\uD83C\uDF5A",      // 🍚
-                "咖啡", "\u2615",            // ☕
-                "奶茶", "\uD83E\uDDCB",      // 🧋
-                "食材", "\uD83E\uDD66",      // 🥦
-                "柴米油盐", "\uD83E\uDDC2",  // 🧂
-                "零食", "\uD83C\uDF6A",      // 🍪
-                "水果", "\uD83C\uDF4E"       // 🍎
-        );
+        String[][] foodSubs = {
+                {"三餐", "\uD83C\uDF5A"}, {"咖啡", "\u2615"}, {"奶茶", "\uD83E\uDDCB"},
+                {"食材", "\uD83E\uDD66"}, {"柴米油盐", "\uD83E\uDDC2"}, {"零食", "\uD83C\uDF6A"}, {"水果", "\uD83C\uDF4E"}
+        };
+        for (String[] sub : foodSubs) addCustomChildCategory("餐饮", sub[0], sub[1]);
         EMOJI_MAP.put("餐饮", "\uD83C\uDF54");
 
         // 2. 购物 (🛍 \uD83D\uDECD)
         addCustomParentCategory("购物", "支出");
-        CATEGORY_MAP.putIfAbsent("购物", new ArrayList<>(Arrays.asList("鞋服", "日用", "数码", "包包", "厨房用品", "电器")));
-        addSubEmojis(
-                "鞋服", "\uD83D\uDC55",      // 👕
-                "日用", "\uD83E\uDDFB",      // 🧻
-                "数码", "\uD83D\uDCBB",      // 💻
-                "包包", "\uD83D\uDC5C",      // 👜
-                "厨房用品", "\uD83C\uDF73",   // 🍳
-                "电器", "\uD83D\uDD0C"       // 🔌
-        );
+        String[][] shopSubs = {
+                {"鞋服", "\uD83D\uDC55"}, {"日用", "\uD83E\uDDFB"}, {"数码", "\uD83D\uDCBB"},
+                {"包包", "\uD83D\uDC5C"}, {"厨房用品", "\uD83C\uDF73"}, {"电器", "\uD83D\uDD0C"}
+        };
+        for (String[] sub : shopSubs) addCustomChildCategory("购物", sub[0], sub[1]);
         EMOJI_MAP.put("购物", "\uD83D\uDECD");
 
-        // 3. 交通 (🚗 \uD83D\uDE97)
+        // 3. 交通 (🚕 \uD83D\uDE98)
         addCustomParentCategory("交通", "支出");
-        CATEGORY_MAP.putIfAbsent("交通", new ArrayList<>(Arrays.asList("公交地铁", "打车", "共享单车", "私家车", "火车", "飞机票", "加油", "大巴")));
-        addSubEmojis(
-                "公交地铁", "\uD83D\uDE88",   // 🚇
-                "打车", "\uD83D\uDE95",      // 🚕
-                "共享单车", "\uD83D\uDEB2",   // 🚲
-                "私家车", "\uD83D\uDE97",     // 🚘
-                "火车", "\uD83D\uDE84",      // 🚆
-                "飞机票", "\u2708",    // ✈
-                "加油", "\u26FD",            // ⛽
-                "大巴", "\uD83D\uDE8C"       // 🚌
-        );
+        String[][] transSubs = {
+                {"公交地铁", "\uD83D\uDE88"}, {"打车", "\uD83D\uDE95"}, {"共享单车", "\uD83D\uDEB2"},
+                {"私家车", "\uD83D\uDE97"}, {"火车", "\uD83D\uDE84"}, {"飞机票", "\u2708"},
+                {"加油", "\u26FD"}, {"大巴", "\uD83D\uDE8C"}
+        };
+        for (String[] sub : transSubs) addCustomChildCategory("交通", sub[0], sub[1]);
         EMOJI_MAP.put("交通", "\uD83D\uDE98");
 
         // 4. 住宿 (🏠 \uD83C\uDFE0)
         addCustomParentCategory("住宿", "支出");
-        CATEGORY_MAP.putIfAbsent("住宿", new ArrayList<>(Arrays.asList("房租", "物业水电", "维修")));
-        addSubEmojis(
-                "房租", "\uD83D\uDD11",      // 🔑
-                "物业水电", "\uD83D\uDCA1",   // 💡
-                "维修", "\uD83D\uDD27"       // 🔧
-        );
+        String[][] staySubs = {
+                {"房租", "\uD83D\uDD11"}, {"物业水电", "\uD83D\uDCA1"}, {"维修", "\uD83D\uDD27"}
+        };
+        for (String[] sub : staySubs) addCustomChildCategory("住宿", sub[0], sub[1]);
         EMOJI_MAP.put("住宿", "\uD83C\uDFE0");
 
         // 5. 日常 (📦 \uD83D\uDCE6)
         addCustomParentCategory("日常", "支出");
-        CATEGORY_MAP.putIfAbsent("日常", new ArrayList<>(Arrays.asList("快递", "理发")));
-        addSubEmojis(
-                "快递", "\uD83D\uDCE6",              // 📦
-                "理发", "\u2702" // ✂ 剪刀
-        );
+        String[][] dailySubs = {
+                {"快递", "\uD83D\uDCE6"}, {"理发", "\u2702"}
+        };
+        for (String[] sub : dailySubs) addCustomChildCategory("日常", sub[0], sub[1]);
         EMOJI_MAP.put("日常", "\uD83D\uDCE6");
 
         // 6. 学习 (📚 \uD83D\uDCDA)
         addCustomParentCategory("学习", "支出");
-        CATEGORY_MAP.putIfAbsent("学习", new ArrayList<>(Arrays.asList("培训", "书籍", "文具耗材", "网课", "考试报名")));
-        addSubEmojis(
-                "培训", "\uD83C\uDFEB",      // 🏫
-                "书籍", "\uD83D\uDCDA",      // 📖
-                "文具耗材", "\u270F", // ✏ 铅笔
-                "网课", "\uD83D\uDCBB",     // 💻 电脑
-                "考试报名", "\uD83D\uDCDD"    // 📝
-        );
+        String[][] studySubs = {
+                {"培训", "\uD83C\uDFEB"}, {"书籍", "\uD83D\uDCDA"}, {"文具耗材", "\u270F"},
+                {"网课", "\uD83D\uDCBB"}, {"考试报名", "\uD83D\uDCDD"}
+        };
+        for (String[] sub : studySubs) addCustomChildCategory("学习", sub[0], sub[1]);
         EMOJI_MAP.put("学习", "\uD83D\uDCDA");
 
         // 7. 人情 (💖 \uD83D\uDC96)
         addCustomParentCategory("人情", "支出");
-        CATEGORY_MAP.putIfAbsent("人情", new ArrayList<>(Arrays.asList("送礼", "发红包", "请客", "亲密付", "孝心")));
-        addSubEmojis(
-                "送礼", "\uD83C\uDF81",      // 🎁
-                "发红包", "\uD83E\uDDE7",    // 🧧
-                "请客", "\uD83E\uDD42",      // 🥂
-                "亲密付", "\uD83D\uDC95",    // 💑
-                "孝心", "\uD83D\uDC9D"       // ❤ 红心
-        );
+        String[][] heartSubs = {
+                {"送礼", "\uD83C\uDF81"}, {"发红包", "\uD83E\uDDE7"}, {"请客", "\uD83E\uDD42"},
+                {"亲密付", "\uD83D\uDC95"}, {"孝心", "\uD83D\uDC9D"}
+        };
+        for (String[] sub : heartSubs) addCustomChildCategory("人情", sub[0], sub[1]);
         EMOJI_MAP.put("人情", "\uD83D\uDC96");
 
         // 8. 娱乐 (🎮 \uD83C\uDFAE)
         addCustomParentCategory("娱乐", "支出");
-        CATEGORY_MAP.putIfAbsent("娱乐", new ArrayList<>(Arrays.asList("电影", "游戏", "健身", "休闲", "约会", "演唱会")));
-        addSubEmojis(
-                "电影", "\uD83C\uDFAC",      // 🎬
-                "游戏", "\uD83D\uDD79",      // 🎮
-                "健身", "\uD83C\uDFCB",      // 🏋
-                "休闲", "\uD83C\uDF75",      // 🍵
-                "约会", "\uD83C\uDF39",      // 🌹
-                "演唱会", "\uD83C\uDFA4"     // 🎤
-        );
+        String[][] playSubs = {
+                {"电影", "\uD83C\uDFAC"}, {"游戏", "\uD83D\uDD79"}, {"健身", "\uD83C\uDFCB"},
+                {"休闲", "\uD83C\uDF75"}, {"约会", "\uD83C\uDF39"}, {"演唱会", "\uD83C\uDFA4"}
+        };
+        for (String[] sub : playSubs) addCustomChildCategory("娱乐", sub[0], sub[1]);
         EMOJI_MAP.put("娱乐", "\uD83C\uDFAE");
 
         // 9. 美妆 (💄 \uD83D\uDC84)
         addCustomParentCategory("美妆", "支出");
-        CATEGORY_MAP.putIfAbsent("美妆", new ArrayList<>(Arrays.asList("护肤品", "化妆品", "美容美发", "美甲美睫", "洗面奶")));
-        addSubEmojis(
-                "护肤品", "\uD83E\uDDF4",    // 🧴
-                "化妆品", "\uD83D\uDC84",    // 💄
-                "美容美发", "\uD83D\uDC88",  // 💈
-                "美甲美睫", "\uD83D\uDC85",  // 💅
-                "洗面奶", "\uD83E\uDDFC"     // 🧼
-        );
+        String[][] beautySubs = {
+                {"护肤品", "\uD83E\uDDF4"}, {"化妆品", "\uD83D\uDC84"}, {"美容美发", "\uD83D\uDC88"},
+                {"美甲美睫", "\uD83D\uDC85"}, {"洗面奶", "\uD83E\uDDFC"}
+        };
+        for (String[] sub : beautySubs) addCustomChildCategory("美妆", sub[0], sub[1]);
         EMOJI_MAP.put("美妆", "\uD83D\uDC84");
 
         // 10. 旅游 (✈ \u2708)
         addCustomParentCategory("旅游", "支出");
-        CATEGORY_MAP.putIfAbsent("旅游", new ArrayList<>(Arrays.asList("酒店", "景区门票", "伴手礼", "团费")));
-        addSubEmojis(
-                "酒店", "\uD83C\uDFE8",      // 🏨
-                "景区门票", "\uD83C\uDFAB",   // 🎫
-                "伴手礼", "\uD83C\uDF81",     // 🎁
-                "团费", "\uD83D\uDEA9"       // 🚩
-        );
+        String[][] travelSubs = {
+                {"酒店", "\uD83C\uDFE8"}, {"景区门票", "\uD83C\uDFAB"}, {"伴手礼", "\uD83C\uDF81"}, {"团费", "\uD83D\uDEA9"}
+        };
+        for (String[] sub : travelSubs) addCustomChildCategory("旅游", sub[0], sub[1]);
         EMOJI_MAP.put("旅游", "\u2708");
 
         // 11. 医疗 (💊 \uD83D\uDC8A)
         addCustomParentCategory("医疗", "支出");
-        CATEGORY_MAP.putIfAbsent("医疗", new ArrayList<>(Arrays.asList("就诊", "药品", "住院", "体检", "治疗", "保健")));
-        addSubEmojis(
-                "就诊", "\uD83C\uDFE5",      // 🏥
-                "药品", "\uD83D\uDC8A",      // 💊
-                "住院", "\uD83D\uDECC",      //
-                "体检", "\uD83E\uDE7A",      // 🩺
-                "治疗", "\uD83D\uDC89",      // 💉
-                "保健", "\uD83C\uDF3F"       // 🥗
-        );
+        String[][] medSubs = {
+                {"就诊", "\uD83C\uDFE5"}, {"药品", "\uD83D\uDC8A"}, {"住院", "\uD83D\uDECC"},
+                {"体检", "\uD83E\uDE7A"}, {"治疗", "\uD83D\uDC89"}, {"保健", "\uD83C\uDF3F"}
+        };
+        for (String[] sub : medSubs) addCustomChildCategory("医疗", sub[0], sub[1]);
         EMOJI_MAP.put("医疗", "\uD83D\uDC8A");
 
-        // 12. 会员租用 (👑 \uD83D\uDC51)
+        // 12. 会员 (👑 \uD83D\uDC51)
         addCustomParentCategory("会员", "支出");
-        CATEGORY_MAP.putIfAbsent("会员", new ArrayList<>(Arrays.asList("视频会员", "音乐会员", "办公软件", "社交会员", "书籍会员")));
-        addSubEmojis(
-                "视频会员", "\uD83C\uDFAC",   // 🎬
-                "音乐会员", "\uD83C\uDFB5",   // 🎵
-                "办公软件", "\uD83D\uDCCA",   // 📊
-                "社交会员", "\uD83D\uDCAC",   // 💬
-                "书籍会员", "\uD83D\uDCD6"    // 📖
-        );
+        String[][] memberSubs = {
+                {"视频会员", "\uD83C\uDFAC"}, {"音乐会员", "\uD83C\uDFB5"}, {"办公软件", "\uD83D\uDCCA"},
+                {"社交会员", "\uD83D\uDCAC"}, {"书籍会员", "\uD83D\uDCD6"}
+        };
+        for (String[] sub : memberSubs) addCustomChildCategory("会员", sub[0], sub[1]);
         EMOJI_MAP.put("会员", "\uD83D\uDC51");
 
         // 13. 通讯 (📞 \uD83D\uDCDE)
         addCustomParentCategory("通讯", "支出");
-        CATEGORY_MAP.putIfAbsent("通讯", new ArrayList<>(Arrays.asList("话费", "宽带")));
-        addSubEmojis(
-                "话费", "\uD83D\uDCF1",      // 📱
-                "宽带", "\uD83C\uDF10"       // 🌐
-        );
+        String[][] callSubs = {
+                {"话费", "\uD83D\uDCF1"}, {"宽带", "\uD83C\uDF10"}
+        };
+        for (String[] sub : callSubs) addCustomChildCategory("通讯", sub[0], sub[1]);
         EMOJI_MAP.put("通讯", "\uD83D\uDCDE");
 
-        // 收入类 - 将原来的二级分类提升为一级分类
-        addCustomParentCategory("工资", "收入");      // 💳 信用卡
-        CATEGORY_MAP.putIfAbsent("工资", new ArrayList<>());
+        // 14. 收入类 (提升为一级)
+        addCustomParentCategory("工资", "收入");
         EMOJI_MAP.put("工资", "\uD83D\uDCB3");
 
-        addCustomParentCategory("奖金", "收入");      // 🏆 奖杯
-        CATEGORY_MAP.putIfAbsent("奖金", new ArrayList<>());
+        addCustomParentCategory("奖金", "收入");
         EMOJI_MAP.put("奖金", "\uD83C\uDFC6");
 
-        addCustomParentCategory("理财", "收入");      // 📈 上升趋势
-        CATEGORY_MAP.putIfAbsent("理财", new ArrayList<>());
+        addCustomParentCategory("理财", "收入");
         EMOJI_MAP.put("理财", "\uD83D\uDCC8");
 
-        addCustomParentCategory("兼职", "收入");      // 🛠 工具（去掉变体选择符）
-        CATEGORY_MAP.putIfAbsent("兼职", new ArrayList<>());
+        addCustomParentCategory("兼职", "收入");
         EMOJI_MAP.put("兼职", "\uD83D\uDEE0");
 
-        addCustomParentCategory("生活费", "收入");    // 💰 钱袋
-        CATEGORY_MAP.putIfAbsent("生活费", new ArrayList<>());
+        addCustomParentCategory("生活费", "收入");
         EMOJI_MAP.put("生活费", "\uD83D\uDCB0");
 
-        addCustomParentCategory("其他收入", "收入");  // 💎 宝石
-        CATEGORY_MAP.putIfAbsent("其他收入", new ArrayList<>());
+        addCustomParentCategory("其他收入", "收入");
         EMOJI_MAP.put("其他收入", "\uD83D\uDC8E");
     }
 
@@ -557,6 +517,18 @@ public class CategoryManager {
                 if (!line.trim().isEmpty()) PERSONALIZATIONS.add(line.trim());
             }
         } catch (IOException e) { e.printStackTrace(); }
+    }
+    /**
+     * 根据二级分类名称反查其所属的一级分类
+     * 用于修复 AI 越级建议的 Bug
+     */
+    public static String findParentByChild(String childName) {
+        for (Map.Entry<String, List<String>> entry : CATEGORY_MAP.entrySet()) {
+            if (entry.getValue().contains(childName)) {
+                return entry.getKey();
+            }
+        }
+        return null;
     }
 }
 

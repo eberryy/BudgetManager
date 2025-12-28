@@ -18,7 +18,7 @@ public class AICategorizer {
     private static final String API_KEY = "sk-kovzrnozjojynhribjnternslpdyptambrkrzjdbquyldady";
     private static final String API_URL = "https://api.siliconflow.cn/v1/chat/completions";
     // 推荐使用能力更强的模型来处理这种复杂逻辑
-    private static final String MODEL_NAME = "deepseek-ai/DeepSeek-V3";
+    private static final String MODEL_NAME = "Qwen/Qwen3-Next-80B-A3B-Instruct";
 
     private static final Gson gson = new Gson();
     private static final HttpClient client = HttpClient.newHttpClient();
@@ -42,36 +42,54 @@ public class AICategorizer {
             // 构造个性化指令字符串
             String customInstructions = personalizations.isEmpty() ? "无" :
                     String.join("\n- ", personalizations);
-
-            // 升级版 Prompt 3.0
             String prompt = String.format(
-                    "你是一个极其聪明的财务分类 Agent。请根据以下信息对账单进行分类。\n\n" +
-                            "【1. 现有分类体系】\n" +
-                            "支出分类树: %s\n" +
-                            "收入分类树: %s\n\n" +
-                            "【2. 用户个性化定义】(请务必严格遵守这些特定偏好):\n- %s\n\n" +
-                            "【3. 待处理账单明细】\n%s\n\n" +
-                            "【4. 核心逻辑要求】\n" +
-                            "1. 首先根据金额正负判断：正数为收入，负数为支出。严禁混淆收支体系。\n" +
-                            "2. 优先匹配二级分类。如果匹配，输出格式为 '一级分类 - 二级分类'。\n" +
-                            "3. 无法完全匹配时，建议一个新的一级分类名称。禁止使用'其他'。\n" +
-                            "4. 必须提供 'fallback'，即如果不允许创建新分类时，最接近的【现有分类库】中的一级分类。\n" +
-                            "请严格返回一个 JSON 对象，其 Key 必须是待处理明细中提供的 unique_id，" +
-                            "Value 是一个包含 suggestion, isNew, fallback 的对象。不要包含任何 Markdown 格式。",
+                    "### 任务\n" +
+                            "作为财务分类专家，请根据现有体系和用户偏好，为账单明细匹配最合适的分类。\n\n" +
+                            "### 1. 现有分类体系\n" +
+                            "支出树 (Expense): %s\n" +
+                            "收入树 (Income): %s\n\n" +
+                            "### 2. 用户个性化偏好\n" +
+                            "%s\n\n" +
+                            "### 3. 示例 (Few-Shot Examples)\n" +
+                            "// 场景1：匹配现有分类\n" +
+                            "输入: [{\"desc\": \"美团-村上一屋·日料\", \"amount\": -20.0, \"unique_id\": \"ex1\"}]\n" +
+                            "输出: {\"ex1\": {\"suggestion\": \"餐饮 - 三餐\", \"isNew\": false, \"fallback\": \"餐饮\"}}\n\n" +
+                            "// 场景2：发现新分类（要求：名称极简，不要废话）\n" +
+                            "输入: [{\"desc\": \"北京鸿笙科技-标准洗\", \"amount\": -2.25, \"unique_id\": \"ex2\"}]\n" +
+                            "输出: {\"ex2\": {\"suggestion\": \"洗衣\", \"isNew\": true, \"fallback\": \"日常\"}}\n\n" +
+                            "输入: [{\"desc\": \"印之梦联营-自助打印\", \"amount\": -0.75, \"unique_id\": \"ex3\"}]\n" +
+                            "输出: {\"ex3\": {\"suggestion\": \"办公\", \"isNew\": true, \"fallback\": \"学习\"}}\n\n" +
+                            "输入: [{\"desc\": \"荣耀-鲜花卡\", \"amount\": -98.0, \"unique_id\": \"ex4\"}]\n" +
+                            "输出: {\"ex4\": {\"suggestion\": \"虚拟产品\", \"isNew\": true, \"fallback\": \"会员\"}}\n\n" +
+                            "### 4. 约束逻辑\n" +
+                            "- 建议格式：优先建议 '一级分类 - 二级分类'。若当前确无合适的分类，需新建分类，仅建议一级分类名。\n" +
+                            "- Fallback：若不允许新建分类，必须指定一个【现有】最接近的一级分类。\n\n" +
+                            "### 5. 输出要求\n" +
+                            "- 严格返回 JSON 对象，Key 为 unique_id。\n" +
+                            "- **严禁**包含任何 Markdown 标签或额外的文字说明。\n\n" +
+                            "- 不要输出 reason 字段，也不要输出任何分析文字。\n" +
+                            "### 6. 待处理明细\n" +
+                            "%s",
                     gson.toJson(expenseTree),
                     gson.toJson(incomeTree),
                     customInstructions,
                     gson.toJson(billItems)
             );
+
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("model", MODEL_NAME);
+            // java/cn/bit/budget/util/AICategorizer.java
+
             requestBody.put("messages", List.of(
-                    Map.of("role", "system", "content", "你是一个只输出 JSON 的高智商财务 Agent。"),
+                    Map.of("role", "system", "content",
+                            "你是一个冷酷的 JSON 生成器。严禁输出任何思考过程（<think>）。" +
+                                    "严禁对结果进行任何解释。直接输出 JSON 字典，不要包含 Markdown 代码块。"),
                     Map.of("role", "user", "content", prompt)
             ));
             requestBody.put("stream", false);
             requestBody.put("temperature", 0.1);
-            requestBody.put("max_tokens", 12000); // 稍微调大一点，因为返回结构变复杂了
+            requestBody.put("max_tokens", 20000); // 稍微调大一点，因为返回结构变复杂了
+            requestBody.put("response_format", Map.of("type", "json_object")); // 强制 JSON 模式
 
             String jsonBody = gson.toJson(requestBody);
 
@@ -79,7 +97,7 @@ public class AICategorizer {
                     .uri(URI.create(API_URL))
                     .header("Content-Type", "application/json")
                     .header("Authorization", "Bearer " + API_KEY)
-                    .timeout(Duration.ofSeconds(90))
+                    .timeout(Duration.ofSeconds(50))
                     .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
                     .build();
 

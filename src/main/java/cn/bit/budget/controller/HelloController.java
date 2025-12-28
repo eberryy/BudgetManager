@@ -1145,9 +1145,11 @@ public class HelloController implements Initializable {
         }
     }
 
+    // java/cn/bit/budget/controller/HelloController.java
+
     /**
-     * 核心分批逻辑 (V3.0 - 唯一ID绑定版)
-     * 解决了重复键报错 (如美团收支并存) 和漏网之鱼问题
+     * 核心分批逻辑 (V4.0 - 异常对位处理版)
+     * 即使 AI 分析失败，也将条目添加至列表并标黄提示，确保不漏账。
      */
     private void runBatchCategorization(List<Bill> rawBills, TableView<ReviewItem> table,
                                         ProgressBar pb, Label pText, Label sLabel, Button btn) {
@@ -1162,7 +1164,7 @@ public class HelloController implements Initializable {
         table.setItems(reviewData);
 
         // 2. 并行控制
-        int batchSize = 10; // 可以稍微调大，减少请求总数
+        int batchSize = 5; // 建议在 10 左右，平衡并发量和请求成功率
         java.util.concurrent.atomic.AtomicInteger processedCount = new java.util.concurrent.atomic.AtomicInteger(0);
         List<CompletableFuture<Void>> futures = new ArrayList<>();
 
@@ -1171,7 +1173,7 @@ public class HelloController implements Initializable {
             final int end = Math.min(i + batchSize, totalItems);
             List<String> batchKeys = allUniqueKeys.subList(start, end);
 
-            // 构造 batchItems...
+            // 构造发送给 AI 的数据包
             List<Map<String, Object>> batchItems = new ArrayList<>();
             for (String key : batchKeys) {
                 Bill sample = groupedBills.get(key).get(0);
@@ -1180,40 +1182,49 @@ public class HelloController implements Initializable {
                 batchItems.add(aiItem);
             }
 
-            // 直接发起异步，不再链式等待
+            // 🔥 使用 handle 捕获该批次的所有结果（包括异常）
             CompletableFuture<Void> future = AICategorizer.categorizeAsync(batchItems,
                             CategoryManager.getExpenseCategoryTree(),
                             CategoryManager.getIncomeCategoryTree(),
                             CategoryManager.getPersonalizations())
-                    .thenAccept(results -> javafx.application.Platform.runLater(() -> {
-                        // 更新 UI 列表
-                        results.forEach((uniqueId, res) -> {
-                            if (groupedBills.containsKey(uniqueId)) {
-                                Bill sample = groupedBills.get(uniqueId).get(0);
-                                reviewData.add(new ReviewItem(sample, res, uniqueId, isAutoCreateCategory));
-                            }
-                        });
+                    .handle((results, ex) -> {
+                        javafx.application.Platform.runLater(() -> {
+                            // 遍历本批次原始请求的所有 key，逐一检查是否分析成功
+                            for (String key : batchKeys) {
+                                if (!groupedBills.containsKey(key)) continue;
+                                Bill sample = groupedBills.get(key).get(0);
 
-                        // 并行更新进度条：加多少算多少
-                        int current = processedCount.addAndGet(batchKeys.size());
-                        double p = (double) current / totalItems;
-                        pb.setProgress(p);
-                        pText.setText(current + " / " + totalItems);
-                    }));
+                                // 如果没有异常且结果包含该 key，则正常添加；否则标记为失败
+                                if (ex == null && results != null && results.containsKey(key)) {
+                                    reviewData.add(new ReviewItem(sample, results.get(key), key, isAutoCreateCategory, false));
+                                } else {
+                                    // 分析失败：依然添加到表格，但 failed 标志位设为 true
+                                    reviewData.add(new ReviewItem(sample, null, key, isAutoCreateCategory, true));
+                                }
+                            }
+
+                            // 3. 并行更新进度条（无论成功还是失败，都要计入进度）
+                            int current = processedCount.addAndGet(batchKeys.size());
+                            double p = (double) current / totalItems;
+                            pb.setProgress(p);
+                            pText.setText(current + " / " + totalItems);
+                        });
+                        return null;
+                    });
 
             futures.add(future);
         }
 
-        // 3. 监听“全员收工”
+        // 4. 监听“全员收工”：无论成败都要恢复按钮
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
-                .thenRun(() -> javafx.application.Platform.runLater(() -> {
-                    sLabel.setText("✅ 全部分析完成，请核对并修正结果");
-                    btn.setDisable(false);
-                }))
-                .exceptionally(ex -> {
-                    javafx.application.Platform.runLater(() -> showTopRightError("AI 分析中断：" + ex.getMessage()));
-                    return null;
-                });
+                .whenComplete((v, ex) -> javafx.application.Platform.runLater(() -> {
+                    if (ex != null || reviewData.stream().anyMatch(ReviewItem::isFailed)) {
+                        sLabel.setText("\u26A0 部分任务分析失败，已标记为黄色，请手动核对");
+                    } else {
+                        sLabel.setText("✅全部分析完成，请核对并修正结果");
+                    }
+                    btn.setDisable(false); // 必须放开按钮，让用户能完成导入
+                }));
     }
 
     /**
@@ -1225,26 +1236,29 @@ public class HelloController implements Initializable {
         colDesc.setCellValueFactory(new PropertyValueFactory<>("originalDesc"));
         colDesc.setPrefWidth(240);
         // 自定义单元格工厂，根据是否为新分类显示颜色
+        // java/cn/bit/budget/controller/HelloController.java -> setupReviewTableColumns
+
+        // 1. 修改描述列渲染
         colDesc.setCellFactory(column -> new TableCell<>() {
             @Override
             protected void updateItem(String item, boolean empty) {
                 super.updateItem(item, empty);
-
                 if (empty || item == null) {
                     setText(null);
-                    setGraphic(null);
                     setStyle("");
                 } else {
-                    // 获取当前行的数据对象
                     ReviewItem rowData = getTableView().getItems().get(getIndex());
                     setText(item);
 
-                    if (rowData != null && rowData.isNewProperty().get()) {
-                        // 如果 AI 建议的是新分类，文字标红并加粗
+                    if (rowData != null && rowData.isFailedProperty().get()) {
+                        // 🔥 失败条目：黄字浅黄底
+                        setTextFill(javafx.scene.paint.Color.web("#e6a23c")); // Element UI 警告黄
+                        setStyle("-fx-background-color: #fdf6ec; -fx-font-weight: bold;");
+                    } else if (rowData != null && rowData.isNewProperty().get()) {
+                        // 新分类条目：红字浅红底
                         setTextFill(javafx.scene.paint.Color.RED);
                         setStyle("-fx-background-color: #fff1f0; -fx-font-weight: bold;");
                     } else {
-                        // 现有分类使用常规深色
                         setTextFill(javafx.scene.paint.Color.web("#303133"));
                         setStyle("");
                     }
@@ -1344,7 +1358,6 @@ public class HelloController implements Initializable {
         colStatus.setPrefWidth(120);
 
         colStatus.setCellFactory(column -> new TableCell<>() {
-            private final CheckBox checkBox = new CheckBox("批准新分类");
             @Override
             protected void updateItem(Boolean approved, boolean empty) {
                 super.updateItem(approved, empty);
@@ -1352,8 +1365,13 @@ public class HelloController implements Initializable {
                     setGraphic(null);
                 } else {
                     ReviewItem rowData = getTableRow().getItem();
-                    // 只有 AI 建议的是新分类，才显示勾选框
-                    if (rowData.isNewProperty().get()) {
+                    if (rowData.isFailedProperty().get()) {
+                        // 如果是分析失败的行
+                        Label errLabel = new Label("\u26A0 分析失败");
+                        errLabel.setTextFill(javafx.scene.paint.Color.web("#e6a23c"));
+                        setGraphic(errLabel);
+                    } else if (rowData.isNewProperty().get()) {
+                        CheckBox checkBox = new CheckBox("批准新分类");
                         checkBox.setSelected(approved);
                         checkBox.setOnAction(e -> rowData.approvedProperty().set(checkBox.isSelected()));
                         setGraphic(checkBox);
@@ -1581,8 +1599,7 @@ public class HelloController implements Initializable {
 
         // 1. 提取描述：通常取备注的第一部分作为核心特征
         String rawDesc = b.getRemark() != null ? b.getRemark() : "";
-        // 🔥 彻底过滤掉双引号和换行符，防止 JSON 爆炸
-        String cleanDesc = rawDesc.replace("\"", "'").replace("\n", " ").trim();
+        String cleanDesc = rawDesc.replaceAll("[\\\\\"\\t\\r\\n]", " ").trim();
         map.put("desc", cleanDesc);
 
         // 2. 传入金额：用于 AI 判断收支逻辑
@@ -1611,46 +1628,109 @@ public class HelloController implements Initializable {
         return clean;
     }
     // ---------- 辅助类 -----------
+    // java/cn/bit/budget/controller/HelloController.java -> ReviewItem 内部类
+
     public static class ReviewItem {
         private final String originalDesc;
-        private final StringProperty parentCategory = new SimpleStringProperty(); // 一级
-        private final StringProperty subCategory = new SimpleStringProperty();    // 二级
+        private final StringProperty parentCategory = new SimpleStringProperty();
+        private final StringProperty subCategory = new SimpleStringProperty();
         private final BooleanProperty isNew = new SimpleBooleanProperty();
-        private final BooleanProperty approved = new SimpleBooleanProperty(true);
-        private final String fallback; // 记录 AI 提供的兜底一级分类
+        private final BooleanProperty approved = new SimpleBooleanProperty();
+        private final BooleanProperty isFailed = new SimpleBooleanProperty();
+        private final String fallback;
         private final String billType;
         private final String uniqueId;
 
-        public ReviewItem(Bill bill, AICategorizer.CategoryResult res, String uniqueId, boolean autoApproveSetting) {
+        /**
+         * 构造函数：集成了 AI 结果验证、层级溯源及失败状态处理
+         */
+        public ReviewItem(Bill bill, AICategorizer.CategoryResult res, String uniqueId,
+                          boolean autoApproveSetting, boolean failed) {
             this.originalDesc = getSafeDesc(bill.getRemark());
-            this.isNew.set(res.isNew);
-            this.fallback = res.fallback;
             this.billType = bill.getType();
             this.uniqueId = uniqueId;
+            this.isFailed.set(failed);
 
-            // 如果 AI 建议是新分类，根据 auto 设置来定初始值
-            // 如果不是新分类，默认就是“已批准”（因为不需要创建）
-            this.approved.set(!res.isNew || autoApproveSetting);
-            // 解析 AI 的建议，例如 "餐饮 - 三餐"
-            if (res.suggestion.contains(" - ")) {
-                String[] parts = res.suggestion.split(" - ");
-                this.parentCategory.set(parts[0].trim());
-                this.subCategory.set(parts[1].trim());
+            if (failed || res == null) {
+                // 1. 处理分析失败的情况
+                this.isNew.set(false);
+                this.approved.set(false);
+                this.fallback = "未分类";
+                this.parentCategory.set("未分类");
+                this.subCategory.set("无");
             } else {
-                this.parentCategory.set(res.suggestion.trim());
-                this.subCategory.set("无"); // 默认无二级
+                // 2. 处理分析成功的情况：执行多重校验
+                String suggestion = res.suggestion.trim();
+                String pCat;
+                String sCat = "无";
+                boolean isActuallyNew;
+
+                if (suggestion.contains(" - ")) {
+                    // 情况 A：AI 按照规范返回了 "一级 - 二级"
+                    String[] parts = suggestion.split(" - ");
+                    pCat = parts[0].trim();
+                    sCat = parts[1].trim();
+                    // 校验点：即使 AI 说它是新的，如果一级分类已存在，则标记为旧分类
+                    isActuallyNew = !CategoryManager.getParentCategories().contains(pCat);
+                } else {
+                    // 情况 B：AI 只返回了一个词（容易出现越级或重名 Bug）
+
+                    // 校验 1：检查该词是否本身就是已存在的一级分类 (解决重名 Bug)
+                    if (CategoryManager.getParentCategories().contains(suggestion)) {
+                        pCat = suggestion;
+                        isActuallyNew = false;
+                    } else {
+                        // 校验 2：检查该词是否是某个已存在的二级分类 (解决“快递”越级 Bug)
+                        String autoParent = CategoryManager.findParentByChild(suggestion);
+                        if (autoParent != null) {
+                            pCat = autoParent;
+                            sCat = suggestion;
+                            isActuallyNew = false; // 既然能找到父级，说明是系统已有的分类
+                        } else {
+                            // 校验 3：确实是系统中从未出现过的新名称
+                            pCat = suggestion;
+                            isActuallyNew = true;
+                        }
+                    }
+                }
+
+                // 数据赋值
+                this.parentCategory.set(pCat);
+                this.subCategory.set(sCat);
+                this.isNew.set(isActuallyNew);
+                this.fallback = res.fallback;
+
+                // 自动批准逻辑基于我们校准后的 isActuallyNew
+                this.approved.set(!isActuallyNew || autoApproveSetting);
             }
         }
 
-        // --- 公开 Getter 确保表格能读取 ---
+        // ================== Getters & Property Accessors ==================
+
         public String getOriginalDesc() { return originalDesc; }
+
         public String getBillType() { return billType; }
-        public StringProperty parentCategoryProperty() { return parentCategory; }
-        public StringProperty subCategoryProperty() { return subCategory; }
-        public BooleanProperty isNewProperty() { return isNew; }
-        public BooleanProperty approvedProperty() { return approved; }
-        public String getFallback() { return fallback; }
+
         public String getUniqueId() { return uniqueId; }
+
+        public String getFallback() { return fallback; }
+
+        public StringProperty parentCategoryProperty() { return parentCategory; }
+        public String getParentCategory() { return parentCategory.get(); }
+        public void setParentCategory(String value) { this.parentCategory.set(value); }
+
+        public StringProperty subCategoryProperty() { return subCategory; }
+        public String getSubCategory() { return subCategory.get(); }
+        public void setSubCategory(String value) { this.subCategory.set(value); }
+
+        public BooleanProperty isNewProperty() { return isNew; }
+        public boolean isNew() { return isNew.get(); }
+
+        public BooleanProperty approvedProperty() { return approved; }
+        public boolean isApproved() { return approved.get(); }
+
+        public BooleanProperty isFailedProperty() { return isFailed; }
+        public boolean isFailed() { return isFailed.get(); }
     }
 
     /**
