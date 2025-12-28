@@ -1180,7 +1180,7 @@ public class HelloController implements Initializable {
                 batchItems.add(aiItem);
             }
 
-            // 🔥 直接发起异步，不再链式等待
+            // 直接发起异步，不再链式等待
             CompletableFuture<Void> future = AICategorizer.categorizeAsync(batchItems,
                             CategoryManager.getExpenseCategoryTree(),
                             CategoryManager.getIncomeCategoryTree(),
@@ -1194,7 +1194,7 @@ public class HelloController implements Initializable {
                             }
                         });
 
-                        // 🔥 并行更新进度条：加多少算多少
+                        // 并行更新进度条：加多少算多少
                         int current = processedCount.addAndGet(batchKeys.size());
                         double p = (double) current / totalItems;
                         pb.setProgress(p);
